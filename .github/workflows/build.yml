@@ -100,12 +100,28 @@ jobs:
           $errors = 0
           foreach ($script in $scripts) {
             Write-Host "`nChecking $script..."
-            $result = Get-Command -Syntax $script -ErrorAction SilentlyContinue
-            if ($?) {
-              Write-Host "✓ $script syntax valid"
-            } else {
-              Write-Host "✗ $script has syntax errors"
+            
+            # Check if file exists
+            if (-not (Test-Path $script)) {
+              Write-Host "✗ $script not found"
               $errors++
+              continue
+            }
+            
+            # Parse the script to check for syntax errors
+            $parseErrors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $script).Path,
+              [ref]$null,
+              [ref]$parseErrors
+            )
+            
+            if ($parseErrors) {
+              Write-Host "✗ $script has syntax errors:"
+              $parseErrors | ForEach-Object { Write-Host "  $_" }
+              $errors++
+            } else {
+              Write-Host "✓ $script syntax valid"
             }
           }
           
