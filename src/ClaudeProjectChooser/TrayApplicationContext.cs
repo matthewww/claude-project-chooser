@@ -201,7 +201,10 @@ public class TrayApplicationContext : ApplicationContext
         // Cleanup
         _refreshTimer?.Stop();
         _refreshTimer?.Dispose();
-        _trayIcon?.Visible = false;
+        if (_trayIcon != null)
+        {
+            _trayIcon.Visible = false;
+        }
         _trayIcon?.Dispose();
         _contextMenu?.Dispose();
 
