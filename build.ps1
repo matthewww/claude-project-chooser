@@ -17,7 +17,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$ProjectPath = Join-Path $PSScriptRoot "src/ClaudeProjectChooser/ClaudeProjectChooser.csproj"
+$ProjectPath = Join-Path $PSScriptRoot "windows-app/ClaudeProjectChooser.csproj"
 
 Write-Host "Claude Project Chooser - Build Script" -ForegroundColor Cyan
 Write-Host "====================================`n" -ForegroundColor Cyan
@@ -46,7 +46,7 @@ dotnet build $ProjectPath -c Release
 if ($LASTEXITCODE -eq 0) {
     Write-Host "✓ Build successful!" -ForegroundColor Green
     
-    $outputPath = Join-Path $PSScriptRoot "src/ClaudeProjectChooser/bin/Release/net8.0-windows/ClaudeProjectChooser.exe"
+    $outputPath = Join-Path $PSScriptRoot "windows-app/bin/Release/net8.0-windows/ClaudeProjectChooser.exe"
     
     if (Test-Path $outputPath) {
         Write-Host "`nExecutable location:" -ForegroundColor Cyan

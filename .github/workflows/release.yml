@@ -41,21 +41,21 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.VERSION }}"
-          $csprojPath = "src/ClaudeProjectChooser/ClaudeProjectChooser.csproj"
+          $csprojPath = "windows-app/ClaudeProjectChooser.csproj"
           $content = Get-Content $csprojPath -Raw
           $content = $content -replace '<Version>.*?</Version>', "<Version>$version</Version>"
           Set-Content $csprojPath $content
           Write-Host "Updated version to $version"
       
       - name: Restore dependencies
-        run: dotnet restore src/ClaudeProjectChooser/ClaudeProjectChooser.csproj
+        run: dotnet restore windows-app/ClaudeProjectChooser.csproj
       
       - name: Build Release
-        run: dotnet build src/ClaudeProjectChooser/ClaudeProjectChooser.csproj -c Release --no-restore
+        run: dotnet build windows-app/ClaudeProjectChooser.csproj -c Release --no-restore
       
       - name: Publish Windows x64 (Self-contained)
         run: |
-          dotnet publish src/ClaudeProjectChooser/ClaudeProjectChooser.csproj `
+          dotnet publish windows-app/ClaudeProjectChooser.csproj `
             -c Release `
             -r win-x64 `
             --self-contained true `
@@ -66,7 +66,7 @@ jobs:
       
       - name: Publish Windows x64 (Framework-dependent)
         run: |
-          dotnet publish src/ClaudeProjectChooser/ClaudeProjectChooser.csproj `
+          dotnet publish windows-app/ClaudeProjectChooser.csproj `
             -c Release `
             -r win-x64 `
             --self-contained false `
@@ -75,7 +75,7 @@ jobs:
       
       - name: Publish Windows ARM64 (Self-contained)
         run: |
-          dotnet publish src/ClaudeProjectChooser/ClaudeProjectChooser.csproj `
+          dotnet publish windows-app/ClaudeProjectChooser.csproj `
             -c Release `
             -r win-arm64 `
             --self-contained true `

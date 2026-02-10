@@ -22,17 +22,17 @@ jobs:
           dotnet-version: '8.0.x'
       
       - name: Restore dependencies
-        run: dotnet restore src/ClaudeProjectChooser/ClaudeProjectChooser.csproj
+        run: dotnet restore windows-app/ClaudeProjectChooser.csproj
       
       - name: Build Debug
-        run: dotnet build src/ClaudeProjectChooser/ClaudeProjectChooser.csproj -c Debug --no-restore
+        run: dotnet build windows-app/ClaudeProjectChooser.csproj -c Debug --no-restore
       
       - name: Build Release
-        run: dotnet build src/ClaudeProjectChooser/ClaudeProjectChooser.csproj -c Release --no-restore
+        run: dotnet build windows-app/ClaudeProjectChooser.csproj -c Release --no-restore
       
       - name: Test Publish (win-x64)
         run: |
-          dotnet publish src/ClaudeProjectChooser/ClaudeProjectChooser.csproj `
+          dotnet publish windows-app/ClaudeProjectChooser.csproj `
             -c Release `
             -r win-x64 `
             --self-contained true `
@@ -44,7 +44,7 @@ jobs:
         run: |
           Write-Host "Checking build outputs..."
           
-          $releaseExe = "src/ClaudeProjectChooser/bin/Release/net8.0-windows/ClaudeProjectChooser.exe"
+          $releaseExe = "windows-app/bin/Release/net8.0-windows/ClaudeProjectChooser.exe"
           $publishExe = "test-publish/ClaudeProjectChooser.exe"
           
           if (Test-Path $releaseExe) {
@@ -73,7 +73,7 @@ jobs:
         with:
           name: build-outputs
           path: |
-            src/ClaudeProjectChooser/bin/Release/net8.0-windows/*.exe
+            windows-app/bin/Release/net8.0-windows/*.exe
             test-publish/*.exe
           retention-days: 7
 
