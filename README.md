@@ -1,5 +1,9 @@
 # Claude Project Chooser
 
+[![Build and Test](https://github.com/matthewww/claude-project-chooser/actions/workflows/build.yml/badge.svg)](https://github.com/matthewww/claude-project-chooser/actions/workflows/build.yml)
+[![Release](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml/badge.svg)](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml)
+[![GitHub release](https://img.shields.io/github/v/release/matthewww/claude-project-chooser)](https://github.com/matthewww/claude-project-chooser/releases)
+
 Quick access to your Claude Code projects - available in two flavors!
 
 ![jmp demo](./image.png)
@@ -30,9 +34,13 @@ A persistent Windows application that runs in your system tray, providing one-cl
 
 ### Installation
 
-**Prerequisites:**
-- Windows 10 or later
-- [.NET 8.0 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) or later
+**Download Pre-built Release (Recommended):**
+1. Go to [Releases](https://github.com/matthewww/claude-project-chooser/releases)
+2. Download `ClaudeProjectChooser-X.X.X-win-x64.zip` (self-contained, no .NET required)
+   - Or download `ClaudeProjectChooser-X.X.X-win-x64-framework.zip` (requires .NET 8.0 Runtime)
+3. Extract the ZIP file
+4. Run `ClaudeProjectChooser.exe`
+5. Look for the icon in your system tray!
 
 **Building from Source:**
 1. Install [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)

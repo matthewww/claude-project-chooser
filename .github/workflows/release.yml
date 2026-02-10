@@ -1,0 +1,278 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 2.0.0)'
+        required: false
+        default: '2.0.0'
+
+jobs:
+  build-taskbar-app:
+    name: Build Windows Taskbar App
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      
+      - name: Get version from tag
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -match 'refs/tags/v(.*)') {
+            $version = $matches[1]
+          } else {
+            $version = "${{ github.event.inputs.version }}"
+          }
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          echo "Version: $version"
+      
+      - name: Update project version
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $csprojPath = "src/ClaudeProjectChooser/ClaudeProjectChooser.csproj"
+          $content = Get-Content $csprojPath -Raw
+          $content = $content -replace '<Version>.*?</Version>', "<Version>$version</Version>"
+          Set-Content $csprojPath $content
+          Write-Host "Updated version to $version"
+      
+      - name: Restore dependencies
+        run: dotnet restore src/ClaudeProjectChooser/ClaudeProjectChooser.csproj
+      
+      - name: Build Release
+        run: dotnet build src/ClaudeProjectChooser/ClaudeProjectChooser.csproj -c Release --no-restore
+      
+      - name: Publish Windows x64 (Self-contained)
+        run: |
+          dotnet publish src/ClaudeProjectChooser/ClaudeProjectChooser.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -o publish/win-x64
+      
+      - name: Publish Windows x64 (Framework-dependent)
+        run: |
+          dotnet publish src/ClaudeProjectChooser/ClaudeProjectChooser.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained false `
+            -p:PublishSingleFile=true `
+            -o publish/win-x64-framework
+      
+      - name: Publish Windows ARM64 (Self-contained)
+        run: |
+          dotnet publish src/ClaudeProjectChooser/ClaudeProjectChooser.csproj `
+            -c Release `
+            -r win-arm64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -o publish/win-arm64
+      
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          
+          # Create release directory
+          New-Item -ItemType Directory -Force -Path release
+          
+          # Package self-contained x64
+          Compress-Archive -Path "publish/win-x64/*" -DestinationPath "release/ClaudeProjectChooser-$version-win-x64.zip"
+          
+          # Package framework-dependent x64
+          Compress-Archive -Path "publish/win-x64-framework/*" -DestinationPath "release/ClaudeProjectChooser-$version-win-x64-framework.zip"
+          
+          # Package self-contained ARM64
+          Compress-Archive -Path "publish/win-arm64/*" -DestinationPath "release/ClaudeProjectChooser-$version-win-arm64.zip"
+          
+          # Copy standalone executables for easy access
+          Copy-Item "publish/win-x64/ClaudeProjectChooser.exe" "release/ClaudeProjectChooser-$version-win-x64.exe"
+          
+          Write-Host "Created release packages:"
+          Get-ChildItem release | ForEach-Object { Write-Host "  - $($_.Name)" }
+      
+      - name: Upload Windows x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-self-contained
+          path: release/ClaudeProjectChooser-*-win-x64.zip
+      
+      - name: Upload Windows x64 framework artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-framework-dependent
+          path: release/ClaudeProjectChooser-*-win-x64-framework.zip
+      
+      - name: Upload Windows ARM64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-self-contained
+          path: release/ClaudeProjectChooser-*-win-arm64.zip
+      
+      - name: Upload standalone executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-executable
+          path: release/ClaudeProjectChooser-*-win-x64.exe
+
+  package-cli:
+    name: Package CLI Version
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Get version from tag
+        id: version
+        shell: bash
+        run: |
+          if [[ $GITHUB_REF =~ refs/tags/v(.*) ]]; then
+            version="${BASH_REMATCH[1]}"
+          else
+            version="${{ github.event.inputs.version }}"
+          fi
+          echo "VERSION=$version" >> $GITHUB_OUTPUT
+          echo "Version: $version"
+      
+      - name: Package CLI version
+        shell: bash
+        run: |
+          version="${{ steps.version.outputs.VERSION }}"
+          mkdir -p release
+          
+          # Create CLI package with all necessary files
+          zip -j "release/ClaudeProjectChooser-CLI-$version.zip" \
+            choose-claude-project.ps1 \
+            jmp.bat \
+            install.ps1 \
+            README.md
+          
+          echo "Created CLI package:"
+          ls -lh release/
+      
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-version
+          path: release/ClaudeProjectChooser-CLI-*.zip
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-taskbar-app, package-cli]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Get version from tag
+        id: version
+        run: |
+          version=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$version" >> $GITHUB_OUTPUT
+          echo "Version: $version"
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f -exec cp {} release-assets/ \;
+          echo "Release assets:"
+          ls -lh release-assets/
+      
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > release-notes.md << 'EOF'
+          ## Claude Project Chooser v${{ steps.version.outputs.VERSION }}
+          
+          ### Downloads
+          
+          #### Windows Taskbar App
+          
+          Choose the version that fits your needs:
+          
+          - **Recommended**: `ClaudeProjectChooser-${{ steps.version.outputs.VERSION }}-win-x64.zip` (Self-contained, no .NET required, ~80MB)
+          - **Small**: `ClaudeProjectChooser-${{ steps.version.outputs.VERSION }}-win-x64-framework.zip` (Requires .NET 8.0 Runtime, ~1MB)
+          - **ARM64**: `ClaudeProjectChooser-${{ steps.version.outputs.VERSION }}-win-arm64.zip` (For ARM64 Windows devices)
+          - **Standalone EXE**: `ClaudeProjectChooser-${{ steps.version.outputs.VERSION }}-win-x64.exe` (Single file, self-contained)
+          
+          #### CLI Version (PowerShell)
+          
+          - `ClaudeProjectChooser-CLI-${{ steps.version.outputs.VERSION }}.zip` (Original CLI tool - `jmp` command)
+          
+          ### Installation
+          
+          #### Taskbar App
+          1. Download the appropriate ZIP file for your system
+          2. Extract the ZIP file
+          3. Run `ClaudeProjectChooser.exe`
+          4. The app will appear in your system tray
+          
+          #### CLI Tool
+          1. Download `ClaudeProjectChooser-CLI-${{ steps.version.outputs.VERSION }}.zip`
+          2. Extract to a folder
+          3. Run `install.ps1` to install to your PATH
+          4. Use the `jmp` command from any terminal
+          
+          ### Requirements
+          
+          - **Taskbar App (Self-contained)**: Windows 10+ (x64 or ARM64)
+          - **Taskbar App (Framework-dependent)**: Windows 10+ and [.NET 8.0 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+          - **CLI Tool**: Windows with PowerShell
+          
+          ### What's Included
+          
+          - System tray application for quick access to Claude projects
+          - Original CLI tool for terminal users
+          - Both versions can coexist on the same system
+          
+          ### Documentation
+          
+          - [README.md](README.md) - Overview of both versions
+          - [TASKBAR_APP_DESIGN.md](TASKBAR_APP_DESIGN.md) - Architecture details
+          - [QUICKSTART.md](QUICKSTART.md) - Quick start guide
+          - [COMPARISON.md](COMPARISON.md) - CLI vs Taskbar comparison
+          
+          ---
+          
+          **Full Changelog**: https://github.com/matthewww/claude-project-chooser/commits/v${{ steps.version.outputs.VERSION }}
+          EOF
+          
+          cat release-notes.md
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release-assets/*
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

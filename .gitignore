@@ -2,6 +2,9 @@
 bin/
 obj/
 publish/
+release/
+release-assets/
+artifacts/
 
 # Visual Studio / Rider
 .vs/
