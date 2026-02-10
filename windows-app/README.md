@@ -151,7 +151,7 @@ The app prevents multiple instances using a named mutex. If you see the "Already
 
 ### Project Structure
 ```
-src/ClaudeProjectChooser/
+windows-app/
 ├── Program.cs                    # Entry point
 ├── TrayApplicationContext.cs     # Main tray app logic
 ├── ProjectManager.cs             # Project discovery and caching
