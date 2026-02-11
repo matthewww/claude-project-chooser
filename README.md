@@ -1,85 +1,33 @@
-# Claude Project Chooser
+# Claude Project Chooser - PowerShell CLI
 
 [![Build and Test](https://github.com/matthewww/claude-project-chooser/actions/workflows/build.yml/badge.svg)](https://github.com/matthewww/claude-project-chooser/actions/workflows/build.yml)
 [![Release](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml/badge.svg)](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml)
 [![GitHub release](https://img.shields.io/github/v/release/matthewww/claude-project-chooser)](https://github.com/matthewww/claude-project-chooser/releases)
 
-Quick access to your Claude Code projects - available in two flavors!
+Quick access to your Claude Code projects from the command line using PowerShell!
 
 ![jmp demo](./image.png)
 
-## 🎯 Two Ways to Use
+> **💡 Looking for a GUI?** Check out the [Windows Taskbar App](windows-app/README.md) for a system tray application!
 
-### 1️⃣ Command Line (CLI) - `jmp` Command
-A PowerShell tool for terminal users. Type `jmp` to get an interactive menu.
+## 📟 What It Does
 
-### 2️⃣ Windows Taskbar App (NEW! 🎉)
-A system tray application that sits in your Windows taskbar. Click the icon for instant access to your projects.
-
-**Choose the version that fits your workflow!** Both can be installed side-by-side.
-
----
-
-## 🖥️ Windows Taskbar App (v2.0)
-
-### What Is It?
-A persistent Windows application that runs in your system tray, providing one-click access to all your Claude projects.
+A PowerShell tool that provides an interactive menu for quickly accessing your Claude Code projects.
 
 ### Features
-- 🎯 **Always Accessible** - Lives in your system tray
-- ⚡ **Instant Access** - Click to see all projects
-- 🔄 **Auto-refresh** - Updates every 5 minutes
-- 📊 **Smart Sorting** - Shows most recent projects first
-- 🚀 **Quick Launch** - One click to open Claude in any project
 
-### Installation
+- 📁 **Project Discovery** - Lists all your Claude projects from `~/.claude/projects`
+- 🎯 **Smart Display** - Shows actual project paths (not the encoded session folder names)
+- ⌨️ **Keyboard Navigation** - Navigate with arrow keys for easy selection
+- 🚀 **Quick Launch** - Launches Claude Code in the selected project directory in a new PowerShell window
+- ⚡ **Fast Performance** - Caches project list for 5 minutes for faster performance
+- 🔄 **Easy Refresh** - Press 'R' to refresh the project list anytime
 
-**Download Pre-built Release (Recommended):**
-1. Go to [Releases](https://github.com/matthewww/claude-project-chooser/releases)
-2. Download `ClaudeProjectChooser-X.X.X-win-x64.zip` (self-contained, no .NET required)
-   - Or download `ClaudeProjectChooser-X.X.X-win-x64-framework.zip` (requires .NET 8.0 Runtime)
-3. Extract the ZIP file
-4. Run `ClaudeProjectChooser.exe`
-5. Look for the icon in your system tray!
-
-**Building from Source:**
-1. Install [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-2. Run the build script:
-   ```powershell
-   .\build.ps1
-   ```
-3. Find the executable in `windows-app/bin/Release/net8.0-windows/`
-4. Double-click to run!
-
-**Optional - Auto-start with Windows:**
-1. Press `Win + R`, type `shell:startup`
-2. Create a shortcut to `ClaudeProjectChooser.exe` in the Startup folder
-
-### Usage
-- **Left-click** the tray icon to see your projects
-- **Click a project** to launch Claude in that directory
-- **Refresh** to reload the project list
-- **Exit** from the menu when done
-
-📖 **Full Documentation:** See [windows-app/README.md](windows-app/README.md) for detailed information.
-
----
-
-## 📟 Command Line Tool (CLI)
-
-### What It Does
-
-- Lists all your Claude projects from `~/.claude/projects`
-- Shows actual project paths (not the encoded session folder names)
-- Navigate with arrow keys for easy selection
-- Launches Claude Code in the selected project directory in a new PowerShell window
-- Caches project list for 5 minutes for faster performance
-
-### Installation
+## Installation
 
 #### Quick Install (Recommended)
 
-Run the installer script:
+Run the installer script from the repository root:
 
 ```powershell
 .\install.ps1
@@ -127,7 +75,7 @@ jmp
 
 You should see a menu of your projects with arrow key navigation.
 
-### Usage
+## Usage
 
 ```powershell
 jmp
@@ -147,26 +95,14 @@ The tool will:
 
 This persistent menu lets you quickly switch between multiple projects.
 
----
-
 ## 🔍 How It Works
 
-Both versions:
-- Read project folders from `~/.claude/projects`
-- Extract actual project paths from the `cwd` field in JSONL session files
-- Sort by most recently modified
-- Cache results for 5 minutes for better performance
-- Launch Claude in a new PowerShell window at the selected project directory
-
-## 📊 Comparison
-
-| Feature | CLI (`jmp`) | Taskbar App |
-|---------|-------------|-------------|
-| **Launch Method** | Type `jmp` in terminal | Click tray icon |
-| **Always Visible** | No | Yes (system tray) |
-| **Resource Usage** | None when not running | ~10MB RAM |
-| **Best For** | Terminal enthusiasts | GUI users |
-| **Keyboard Focus** | Required | Not required |
+The CLI tool:
+- Reads project folders from `~/.claude/projects`
+- Extracts actual project paths from the `cwd` field in JSONL session files
+- Sorts by most recently modified
+- Caches results for 5 minutes for better performance
+- Launches Claude in a new PowerShell window at the selected project directory
 
 ## 📁 Repository Structure
 
@@ -175,39 +111,28 @@ claude-project-chooser/
 ├── choose-claude-project.ps1  # CLI script
 ├── jmp.bat                     # CLI wrapper
 ├── install.ps1                 # CLI installer
-├── build.ps1                   # Taskbar app build script
-├── windows-app/                # Windows taskbar app
-│   ├── ClaudeProjectChooser.csproj  # C# project
-│   ├── Program.cs              # Main entry point
-│   └── README.md               # Taskbar app docs
-├── TASKBAR_APP_DESIGN.md       # Design documentation
-└── README.md                   # This file
+├── build.ps1                   # Build script for Windows app
+├── windows-app/                # Windows taskbar app (see windows-app/README.md)
+└── README.md                   # This file (PowerShell CLI docs)
 ```
 
 ## 🚀 Quick Start
 
-**For Terminal Users:**
 ```powershell
 .\install.ps1
+# Restart PowerShell
 jmp
-```
-
-**For GUI Users:**
-```powershell
-.\build.ps1
-# Then run: windows-app/bin/Release/net8.0-windows/ClaudeProjectChooser.exe
 ```
 
 ## 🤝 Contributing
 
-Both the CLI and taskbar versions are open for contributions! 
+Contributions are welcome! 
 
-- CLI improvements: Edit `choose-claude-project.ps1`
-- Taskbar app: See `windows-app/`
-- Design discussions: See `TASKBAR_APP_DESIGN.md`
+- **CLI improvements**: Edit `choose-claude-project.ps1`
+- **Windows taskbar app**: See [windows-app/README.md](windows-app/README.md)
 
 ## 📝 Notes
 
 - Only shows projects that have valid `cwd` paths in their session data
 - Projects without session data are automatically filtered out
-- Both versions can run simultaneously without conflicts
+- Can run side-by-side with the [Windows Taskbar App](windows-app/README.md) without conflicts
