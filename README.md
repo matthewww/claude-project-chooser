@@ -1,22 +1,33 @@
-# Claude Project Chooser
+# Claude Project Chooser - PowerShell CLI
 
-A PowerShell tool to quickly navigate to and launch Claude Code sessions in your projects.
+[![Build and Test](https://github.com/matthewww/claude-project-chooser/actions/workflows/build.yml/badge.svg)](https://github.com/matthewww/claude-project-chooser/actions/workflows/build.yml)
+[![Release](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml/badge.svg)](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml)
+[![GitHub release](https://img.shields.io/github/v/release/matthewww/claude-project-chooser)](https://github.com/matthewww/claude-project-chooser/releases)
+
+Quick access to your Claude Code projects from the command line using PowerShell!
 
 ![jmp demo](./image.png)
 
-## What It Does
+> **💡 Looking for a GUI?** Check out the [Windows Taskbar App](windows-app/README.md) for a system tray application!
 
-- Lists all your Claude projects from `~/.claude/projects`
-- Shows actual project paths (not the encoded session folder names)
-- Navigate with arrow keys for easy selection
-- Launches Claude Code in the selected project directory in a new PowerShell window
-- Caches project list for 5 minutes for faster performance
+## 📟 What It Does
+
+A PowerShell tool that provides an interactive menu for quickly accessing your Claude Code projects.
+
+### Features
+
+- 📁 **Project Discovery** - Lists all your Claude projects from `~/.claude/projects`
+- 🎯 **Smart Display** - Shows actual project paths (not the encoded session folder names)
+- ⌨️ **Keyboard Navigation** - Navigate with arrow keys for easy selection
+- 🚀 **Quick Launch** - Launches Claude Code in the selected project directory in a new PowerShell window
+- ⚡ **Fast Performance** - Caches project list for 5 minutes for faster performance
+- 🔄 **Easy Refresh** - Press 'R' to refresh the project list anytime
 
 ## Installation
 
-### Quick Install (Recommended)
+#### Quick Install (Recommended)
 
-Run the installer script:
+Run the installer script from the repository root:
 
 ```powershell
 .\install.ps1
@@ -30,7 +41,7 @@ This will:
 
 Then restart PowerShell for the PATH changes to take effect.
 
-### Manual Installation (Alternative)
+#### Manual Installation (Alternative)
 
 If you prefer to install manually:
 
@@ -38,7 +49,7 @@ If you prefer to install manually:
 2. Copy `jmp.bat` and `choose-claude-project.ps1` to that directory
 3. Add `~/.claude/bin` to PATH (see options below)
 
-#### Adding to PATH via PowerShell (Admin)
+##### Adding to PATH via PowerShell (Admin)
 ```powershell
 $binDir = Join-Path $env:USERPROFILE ".claude\bin"
 $path = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -46,7 +57,7 @@ $newPath = "$binDir;$path"
 [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
 ```
 
-#### Adding to PATH via GUI
+##### Adding to PATH via GUI
 1. Press `Win + X`, select "System"
 2. Click "Advanced system settings"
 3. Click "Environment Variables"
@@ -54,7 +65,7 @@ $newPath = "$binDir;$path"
 5. Add a new entry: `%USERPROFILE%\.claude\bin`
 6. Click OK and restart PowerShell
 
-### Verify Installation
+#### Verify Installation
 
 After restarting PowerShell, run:
 
@@ -84,33 +95,44 @@ The tool will:
 
 This persistent menu lets you quickly switch between multiple projects.
 
-## How It Works
+## 🔍 How It Works
 
+The CLI tool:
 - Reads project folders from `~/.claude/projects`
-- Each folder contains Claude Code session data (JSONL files)
-- Extracts actual project paths from the `cwd` field in session data
-- Sorts by most recently modified (newest last)
-- Caches results in `%TEMP%\.claude-projects-cache.txt` for 5 minutes
+- Extracts actual project paths from the `cwd` field in JSONL session files
+- Sorts by most recently modified
+- Caches results for 5 minutes for better performance
+- Launches Claude in a new PowerShell window at the selected project directory
 
-## Refreshing the Project List
+## 📁 Repository Structure
 
-The project list is cached for 5 minutes to improve performance. To refresh immediately:
-
-**From the menu:** Press **R** to refresh the project list
-
-**From PowerShell:**
-```powershell
-rm $env:TEMP\.claude-projects-cache.txt
+```
+claude-project-chooser/
+├── choose-claude-project.ps1  # CLI script
+├── jmp.bat                     # CLI wrapper
+├── install.ps1                 # CLI installer
+├── build.ps1                   # Build script for Windows app
+├── windows-app/                # Windows taskbar app (see windows-app/README.md)
+└── README.md                   # This file (PowerShell CLI docs)
 ```
 
-## Files
+## 🚀 Quick Start
 
-- `install.ps1` - Automated installer script (recommended)
-- `choose-claude-project.ps1` - Main script
-- `jmp.bat` - Windows batch wrapper for easy command-line access
+```powershell
+.\install.ps1
+# Restart PowerShell
+jmp
+```
 
-## Notes
+## 🤝 Contributing
+
+Contributions are welcome! 
+
+- **CLI improvements**: Edit `choose-claude-project.ps1`
+- **Windows taskbar app**: See [windows-app/README.md](windows-app/README.md)
+
+## 📝 Notes
 
 - Only shows projects that have valid `cwd` paths in their session data
 - Projects without session data are automatically filtered out
-- The batch wrapper runs PowerShell with execution policy bypass for convenience
+- Can run side-by-side with the [Windows Taskbar App](windows-app/README.md) without conflicts
