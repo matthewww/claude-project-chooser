@@ -48,7 +48,7 @@ A persistent Windows application that runs in your system tray, providing one-cl
    ```powershell
    .\build.ps1
    ```
-3. Find the executable in `src/ClaudeProjectChooser/bin/Release/net8.0-windows/`
+3. Find the executable in `windows-app/bin/Release/net8.0-windows/`
 4. Double-click to run!
 
 **Optional - Auto-start with Windows:**
@@ -61,7 +61,7 @@ A persistent Windows application that runs in your system tray, providing one-cl
 - **Refresh** to reload the project list
 - **Exit** from the menu when done
 
-📖 **Full Documentation:** See [src/README.md](src/README.md) for detailed information.
+📖 **Full Documentation:** See [windows-app/README.md](windows-app/README.md) for detailed information.
 
 ---
 
@@ -176,8 +176,9 @@ claude-project-chooser/
 ├── jmp.bat                     # CLI wrapper
 ├── install.ps1                 # CLI installer
 ├── build.ps1                   # Taskbar app build script
-├── src/                        # Taskbar app source code
-│   ├── ClaudeProjectChooser/   # C# project
+├── windows-app/                # Windows taskbar app
+│   ├── ClaudeProjectChooser.csproj  # C# project
+│   ├── Program.cs              # Main entry point
 │   └── README.md               # Taskbar app docs
 ├── TASKBAR_APP_DESIGN.md       # Design documentation
 └── README.md                   # This file
@@ -194,7 +195,7 @@ jmp
 **For GUI Users:**
 ```powershell
 .\build.ps1
-# Then run: src/ClaudeProjectChooser/bin/Release/net8.0-windows/ClaudeProjectChooser.exe
+# Then run: windows-app/bin/Release/net8.0-windows/ClaudeProjectChooser.exe
 ```
 
 ## 🤝 Contributing
@@ -202,7 +203,7 @@ jmp
 Both the CLI and taskbar versions are open for contributions! 
 
 - CLI improvements: Edit `choose-claude-project.ps1`
-- Taskbar app: See `src/ClaudeProjectChooser/`
+- Taskbar app: See `windows-app/`
 - Design discussions: See `TASKBAR_APP_DESIGN.md`
 
 ## 📝 Notes

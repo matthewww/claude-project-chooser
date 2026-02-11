@@ -37,9 +37,9 @@ A Windows system tray application that provides quick access to your Claude proj
 
 1. Install [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 2. Clone this repository
-3. Navigate to the source directory:
+3. Navigate to the windows-app directory:
    ```powershell
-   cd src/ClaudeProjectChooser
+   cd windows-app
    ```
 4. Build the application:
    ```powershell
@@ -151,7 +151,7 @@ The app prevents multiple instances using a named mutex. If you see the "Already
 
 ### Project Structure
 ```
-src/ClaudeProjectChooser/
+windows-app/
 ├── Program.cs                    # Entry point
 ├── TrayApplicationContext.cs     # Main tray app logic
 ├── ProjectManager.cs             # Project discovery and caching
