@@ -4,19 +4,152 @@
 [![Release](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml/badge.svg)](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml)
 [![GitHub release](https://img.shields.io/github/v/release/matthewww/claude-project-chooser)](https://github.com/matthewww/claude-project-chooser/releases)
 
-Quick access to your Claude Code projects - available in two flavors!
+Quick access to your Claude Code projects and OpenCode sessions - available in multiple flavors!
 
 ![jmp demo](./image.png)
 
-## 🎯 Two Ways to Use
+## 🎯 Three Ways to Use
 
-### 1️⃣ Command Line (CLI) - `jmp` Command
+### 1️⃣ Unified Project Chooser (NEW! 🚀)
+Single configurable tool for both Claude and OpenCode projects with `jmp.bat` and `jomp.bat` configuration.
+
+### 2️⃣ OpenCode Session Chooser 
+Interactive menu for browsing OpenCode projects and sessions with full session details.
+
+### 3️⃣ Command Line (CLI) - `jmp` Command
 A PowerShell tool for terminal users. Type `jmp` to get an interactive menu.
 
-### 2️⃣ Windows Taskbar App (NEW! 🎉)
+### 4️⃣ Windows Taskbar App
 A system tray application that sits in your Windows taskbar. Click the icon for instant access to your projects.
 
-**Choose the version that fits your workflow!** Both can be installed side-by-side.
+**Choose the version that fits your workflow!** All can be installed side-by-side.
+
+---
+
+## 🚀 Unified Project Chooser (choose-project.ps1)
+
+### What Is It?
+A single, configuration-driven PowerShell script that works with **both Claude and OpenCode** projects. Control behavior via command-line flags in `jmp.bat` and `jomp.bat`.
+
+### Quick Start
+
+```batch
+jmp                          # Claude projects (default)
+jmp --opencode               # OpenCode projects
+jmp --opencode --sessions    # OpenCode with session browser
+jomp                         # OpenCode projects
+jomp --sessions              # OpenCode with sessions
+```
+
+### Features
+- 🔄 **Single Script, Multiple Modes** - No duplicate code, one unified implementation
+- ⚙️ **Fully Configurable** - Control via batch file flags
+- 📂 **Claude & OpenCode** - Works with both project types
+- 📋 **Session Support** - Optional two-tier navigation for OpenCode sessions
+- 🎯 **Smart Defaults** - Claude by default, easy to switch
+- ⚡ **Fast Performance** - 5-minute caching for speed
+- 🛡️ **Robust Error Handling** - Helpful guidance for missing directories, invalid paths, and more
+
+### Configuration Examples
+
+**jmp.bat** (main launcher - all options):
+```batch
+jmp [--claude|--opencode] [--sessions]
+```
+
+**jomp.bat** (OpenCode launcher - simplified):
+```batch
+jomp [--sessions]
+```
+
+### Full Documentation
+See [CHOOSE_PROJECT_GUIDE.md](./CHOOSE_PROJECT_GUIDE.md) for detailed configuration, usage, and **error handling guidance**.
+
+---
+
+### What Is It?
+An interactive PowerShell menu for navigating OpenCode projects and sessions directly from the command line. Integrates with OpenCode's local storage to display project metadata and session history.
+
+### Features
+- 📂 **Browse Projects** - View all OpenCode projects with modification timestamps
+- 📋 **Browse Sessions** - See all sessions for a project with change statistics
+- 🔍 **Session Details** - View titles, file changes (+/- counts)
+- ⚡ **Quick Launch** - One key press to open project in Claude with session context
+- 🔄 **Auto-refresh** - Updates automatically to show latest projects/sessions
+- 🔎 **Search & Filter** - Find sessions by keywords
+
+### Installation
+
+```powershell
+# Copy the scripts to your path or call directly
+# Quick start:
+.\choose-opencode-session.ps1
+```
+
+Or create a batch file wrapper:
+```batch
+@echo off
+pwsh -NoProfile -ExecutionPolicy Bypass -Command "& 'C:\path\to\choose-opencode-session.ps1'"
+```
+
+### Usage
+
+#### Interactive Session Chooser
+```powershell
+.\choose-opencode-session.ps1
+```
+
+Navigation:
+- **Up/Down arrows** - Move between projects/sessions
+- **Enter** - Open selected project in Claude
+- **B** - Go back to project list (when in sessions)
+- **R** - Refresh project/session list
+- **Esc/Q** - Exit
+
+#### OpenCode Utility Script (CLI)
+For non-interactive querying of OpenCode data:
+
+```powershell
+# List all projects
+.\opencode-util.ps1
+
+# List sessions for a project
+.\opencode-util.ps1 list-sessions -ProjectName fpv-db
+
+# Get project information with statistics
+.\opencode-util.ps1 info -ProjectName fpv-db
+
+# Show recent activity across all projects
+.\opencode-util.ps1 recent
+
+# Search sessions by title or slug
+.\opencode-util.ps1 search -Filter "CI"
+
+# Export data as JSON
+.\opencode-util.ps1 list-projects -Json
+```
+
+### Data Source
+- **Location:** `~/.local/share/opencode/storage/`
+- **Projects:** `project/*.json` - Contains project metadata (path, VCS type, timestamps)
+- **Sessions:** `session/<project-id>/*.json` - Contains session history with change tracking
+- **Auto-detection:** Automatically finds OpenCode installation and project data
+
+### Examples
+
+```powershell
+# Quick jump to a project
+.\choose-opencode-session.ps1
+
+# Find all sessions related to "bug"
+.\opencode-util.ps1 search -Filter "bug"
+
+# Export all project data
+.\opencode-util.ps1 list-projects -Json | Out-File projects.json
+
+# Get detailed stats for a specific project
+.\opencode-util.ps1 info -ProjectName fpv-db
+```
 
 ---
 
@@ -172,19 +305,27 @@ Both versions:
 
 ```
 claude-project-chooser/
-├── choose-claude-project.ps1  # CLI script
-├── jmp.bat                     # CLI wrapper
-├── install.ps1                 # CLI installer
-├── build.ps1                   # Taskbar app build script
-├── windows-app/                # Windows taskbar app
+├── choose-claude-project.ps1      # CLI script (original Claude projects)
+├── choose-opencode-session.ps1    # OpenCode interactive selector (NEW!)
+├── opencode-util.ps1              # OpenCode utility/search tool (NEW!)
+├── jmp.bat                         # CLI wrapper (original)
+├── jomp.bat                        # OpenCode wrapper (NEW!)
+├── install.ps1                     # CLI installer
+├── build.ps1                       # Taskbar app build script
+├── windows-app/                    # Windows taskbar app
 │   ├── ClaudeProjectChooser.csproj  # C# project
-│   ├── Program.cs              # Main entry point
-│   └── README.md               # Taskbar app docs
-├── TASKBAR_APP_DESIGN.md       # Design documentation
-└── README.md                   # This file
+│   ├── Program.cs                  # Main entry point
+│   └── README.md                   # Taskbar app docs
+├── TASKBAR_APP_DESIGN.md           # Design documentation
+└── README.md                       # This file
 ```
 
 ## 🚀 Quick Start
+
+**For OpenCode Users (NEW!):**
+```powershell
+.\choose-opencode-session.ps1
+```
 
 **For Terminal Users:**
 ```powershell
