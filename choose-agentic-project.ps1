@@ -1,10 +1,16 @@
 #!/usr/bin/env pwsh
-# Unified Project Chooser - Works with both Claude and OpenCode projects
-# Usage: .\choose-project.ps1 [-Mode <claude|opencode>] [-OpenCodeSessionMode <projects|sessions>]
+# Agentic Project Chooser - Unified tool for Claude and OpenCode projects
+# Features: Smart auto-detection, session browsing, comprehensive error handling
+# Usage: .\choose-agentic-project.ps1 [-Mode <claude|opencode|auto>] [-OpenCodeSessionMode <projects|sessions>]
+#
+# Consolidated features:
+#   - Claude project browser (choose-claude-project.ps1)
+#   - OpenCode project and session browser (choose-opencode-session.ps1)
+#   - Smart fallback: Claude → OpenCode → Error guidance
 
 param(
-    [ValidateSet('claude', 'opencode')]
-    [string]$Mode = 'claude',
+    [ValidateSet('claude', 'opencode', 'auto')]
+    [string]$Mode = 'auto',
     
     [ValidateSet('projects', 'sessions')]
     [string]$OpenCodeSessionMode = 'projects'
@@ -13,16 +19,33 @@ param(
 # ==================== Configuration ====================
 $PageSize = 10
 
+# Detect available modes if auto mode is selected
+$detectedMode = $Mode
+$claudeProjectsDir = Join-Path $env:USERPROFILE ".claude\projects"
+$openCodeStorageDir = Join-Path $env:USERPROFILE ".local\share\opencode\storage"
+$openCodeProjectsDir = Join-Path $openCodeStorageDir "project"
+
+# Smart detection: Try Claude first, fall back to OpenCode
+if ($Mode -eq 'auto') {
+    if (Test-Path $claudeProjectsDir) {
+        $detectedMode = 'claude'
+    } elseif (Test-Path $openCodeProjectsDir) {
+        $detectedMode = 'opencode'
+    } else {
+        # Neither found, default to claude for error message
+        $detectedMode = 'claude'
+    }
+}
+
 # Mode-specific paths and configuration
-if ($Mode -eq 'claude') {
-    $ProjectsDir = Join-Path $env:USERPROFILE ".claude\projects"
+if ($detectedMode -eq 'claude') {
+    $ProjectsDir = $claudeProjectsDir
     $CacheFile = "$env:TEMP\.claude-projects-cache.txt"
     $ToolName = "Claude Project Chooser"
     $CacheMaxAgeMinutes = 5
 } else {
-    $OpenCodeStorageDir = Join-Path $env:USERPROFILE ".local\share\opencode\storage"
-    $ProjectsDir = Join-Path $OpenCodeStorageDir "project"
-    $SessionsDir = Join-Path $OpenCodeStorageDir "session"
+    $ProjectsDir = $openCodeProjectsDir
+    $SessionsDir = Join-Path $openCodeStorageDir "session"
     $CacheFile = "$env:TEMP\.opencode-projects-cache.txt"
     $ToolName = "OpenCode Project Chooser"
     $CacheMaxAgeMinutes = 5
@@ -32,30 +55,57 @@ if ($Mode -eq 'claude') {
 function Show-DirectoryNotFoundError {
     param(
         [string]$MissingDir,
-        [string]$Mode
+        [string]$DetectedMode
     )
     
     Clear-Host
-    Write-Host "`n❌ ERROR: $Mode projects directory not found`n" -ForegroundColor Red
-    Write-Host "Expected location: $MissingDir`n" -ForegroundColor Yellow
     
-    switch ($Mode.ToLower()) {
-        'claude' {
-            Write-Host "To use Claude Project Chooser:" -ForegroundColor Cyan
-            Write-Host "  1. Install Claude Code (if not already installed)" -ForegroundColor White
-            Write-Host "  2. Create or open a project in Claude Code" -ForegroundColor White
-            Write-Host "  3. This will create the .claude/projects directory" -ForegroundColor White
-            Write-Host "  4. Run this tool again`n" -ForegroundColor White
-            Write-Host "Need help? Visit: https://claude.ai" -ForegroundColor DarkGray
-        }
-        'opencode' {
-            Write-Host "To use OpenCode Project Chooser:" -ForegroundColor Cyan
-            Write-Host "  1. Install OpenCode (https://opencode.ai)" -ForegroundColor White
-            Write-Host "  2. Create or open a project in OpenCode" -ForegroundColor White
-            Write-Host "  3. This will create the .local/share/opencode directory" -ForegroundColor White
-            Write-Host "  4. Run this tool again`n" -ForegroundColor White
-            Write-Host "Directory that would be created:" -ForegroundColor Gray
-            Write-Host "    $MissingDir`n" -ForegroundColor DarkGray
+    # Check if BOTH tools are missing
+    $claudeMissing = -not (Test-Path (Join-Path $env:USERPROFILE ".claude\projects"))
+    $opencodeMissing = -not (Test-Path (Join-Path $env:USERPROFILE ".local\share\opencode\storage\project"))
+    
+    if ($claudeMissing -and $opencodeMissing) {
+        # Both missing - show combined guidance
+        Write-Host "`n❌ ERROR: No projects found`n" -ForegroundColor Red
+        Write-Host "Neither Claude Code nor OpenCode projects directory found." -ForegroundColor Yellow
+        Write-Host "Expected locations:" -ForegroundColor Yellow
+        Write-Host "  • $(Join-Path $env:USERPROFILE '.claude\projects')" -ForegroundColor DarkGray
+        Write-Host "  • $(Join-Path $env:USERPROFILE '.local\share\opencode\storage\project')`n" -ForegroundColor DarkGray
+        
+        Write-Host "To get started, choose one option:`n" -ForegroundColor Cyan
+        
+        Write-Host "Option 1: Use Claude Code" -ForegroundColor White
+        Write-Host "  1. Install Claude Code from https://claude.ai" -ForegroundColor DarkGray
+        Write-Host "  2. Create or open a project" -ForegroundColor DarkGray
+        Write-Host "  3. This tool will find it automatically`n" -ForegroundColor DarkGray
+        
+        Write-Host "Option 2: Use OpenCode" -ForegroundColor White
+        Write-Host "  1. Install OpenCode from https://opencode.ai" -ForegroundColor DarkGray
+        Write-Host "  2. Create or open a project" -ForegroundColor DarkGray
+        Write-Host "  3. This tool will find it automatically`n" -ForegroundColor DarkGray
+    } else {
+        # One tool is available but its directory is empty
+        Write-Host "`n❌ ERROR: $DetectedMode projects directory not found`n" -ForegroundColor Red
+        Write-Host "Expected location: $MissingDir`n" -ForegroundColor Yellow
+        
+        switch ($DetectedMode.ToLower()) {
+            'claude' {
+                Write-Host "To use Claude Project Chooser:" -ForegroundColor Cyan
+                Write-Host "  1. Install Claude Code (if not already installed)" -ForegroundColor White
+                Write-Host "  2. Create or open a project in Claude Code" -ForegroundColor White
+                Write-Host "  3. This will create the .claude/projects directory" -ForegroundColor White
+                Write-Host "  4. Run this tool again`n" -ForegroundColor White
+                Write-Host "Need help? Visit: https://claude.ai" -ForegroundColor DarkGray
+            }
+            'opencode' {
+                Write-Host "To use OpenCode Project Chooser:" -ForegroundColor Cyan
+                Write-Host "  1. Install OpenCode (https://opencode.ai)" -ForegroundColor White
+                Write-Host "  2. Create or open a project in OpenCode" -ForegroundColor White
+                Write-Host "  3. This will create the .local/share/opencode directory" -ForegroundColor White
+                Write-Host "  4. Run this tool again`n" -ForegroundColor White
+                Write-Host "Directory that would be created:" -ForegroundColor Gray
+                Write-Host "    $MissingDir`n" -ForegroundColor DarkGray
+            }
         }
     }
     
@@ -104,19 +154,19 @@ function Show-InvalidPathError {
 
 function Test-DirectoriesExist {
     param(
-        [string]$Mode
+        [string]$DetectedMode
     )
     
     # Check if projects directory exists
     if (-not (Test-Path $ProjectsDir)) {
-        Show-DirectoryNotFoundError -MissingDir $ProjectsDir -Mode $Mode
+        Show-DirectoryNotFoundError -MissingDir $ProjectsDir -DetectedMode $DetectedMode
         return $false
     }
     
     # Check if there are any projects
     $projectCount = (Get-ChildItem -Path $ProjectsDir -ErrorAction SilentlyContinue | Measure-Object).Count
     if ($projectCount -eq 0) {
-        Show-NoProjectsError -Mode $Mode -ProjectsDir $ProjectsDir
+        Show-NoProjectsError -Mode $DetectedMode -ProjectsDir $ProjectsDir
         return $false
     }
     
@@ -415,7 +465,7 @@ function Show-Chooser {
                     return @{ selected = $false }
                 }
             } else {
-                if ($Mode -eq 'claude') {
+                if ($detectedMode -eq 'claude') {
                     $script:allItems = Get-ClaudeProjectList
                 } else {
                     $script:allItems = Get-OpenCodeProjectList
@@ -439,12 +489,12 @@ function Show-Chooser {
 
 # ==================== Main Entry Point ====================
 # Validate directories before proceeding
-if (-not (Test-DirectoriesExist -Mode $Mode)) {
+if (-not (Test-DirectoriesExist -DetectedMode $detectedMode)) {
     exit 1
 }
 
-# Load initial projects
-if ($Mode -eq 'claude') {
+# Load initial projects based on detected mode
+if ($detectedMode -eq 'claude') {
     $allProjects = Get-ClaudeProjectList
 } else {
     $allProjects = Get-OpenCodeProjectList
@@ -452,7 +502,7 @@ if ($Mode -eq 'claude') {
 
 # Double-check we have projects
 if ($allProjects.Count -eq 0) {
-    Show-NoProjectsError -Mode $Mode -ProjectsDir $ProjectsDir
+    Show-NoProjectsError -Mode $detectedMode -ProjectsDir $ProjectsDir
     exit 1
 }
 
@@ -464,7 +514,7 @@ while ($true) {
         $selectedProject = $allProjects[$result.index]
         
         # For OpenCode, optionally show sessions before opening
-        if ($Mode -eq 'opencode' -and $OpenCodeSessionMode -eq 'sessions') {
+        if ($detectedMode -eq 'opencode' -and $OpenCodeSessionMode -eq 'sessions') {
             $sessions = Get-OpenCodeSessionsForProject $selectedProject.id
             if ($sessions.Count -gt 0) {
                 $sessionResult = Show-Chooser $sessions $true $selectedProject

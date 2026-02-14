@@ -34,7 +34,8 @@ A single, configuration-driven PowerShell script that works with **both Claude a
 ### Quick Start
 
 ```batch
-jmp                          # Claude projects (default)
+jmp                          # Smart auto-detection (Claude → OpenCode)
+jmp --claude                 # Claude projects (explicit)
 jmp --opencode               # OpenCode projects
 jmp --opencode --sessions    # OpenCode with session browser
 jomp                         # OpenCode projects
@@ -46,7 +47,7 @@ jomp --sessions              # OpenCode with sessions
 - ⚙️ **Fully Configurable** - Control via batch file flags
 - 📂 **Claude & OpenCode** - Works with both project types
 - 📋 **Session Support** - Optional two-tier navigation for OpenCode sessions
-- 🎯 **Smart Defaults** - Claude by default, easy to switch
+- 🎯 **Smart Auto-Detection** - Automatically uses Claude if available, falls back to OpenCode (default mode)
 - ⚡ **Fast Performance** - 5-minute caching for speed
 - 🛡️ **Robust Error Handling** - Helpful guidance for missing directories, invalid paths, and more
 

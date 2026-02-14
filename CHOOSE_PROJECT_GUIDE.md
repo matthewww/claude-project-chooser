@@ -27,6 +27,18 @@ jmp --opencode
 jmp --opencode --sessions
 ```
 
+### Auto-Detection Mode (Smart Fallback)
+```batch
+jmp --auto
+```
+
+The script automatically detects which tools are available and uses them in this order:
+1. **Claude Projects** - If `~/.claude/projects` exists
+2. **OpenCode Projects** - If Claude isn't available but OpenCode is found
+3. **Combined Setup Guidance** - If neither tool is found (helps you get started)
+
+This is also the **default behavior when no mode is specified**.
+
 ## Configuration
 
 ### Via Batch Files
@@ -151,21 +163,29 @@ call jmp --opencode --sessions
 ### Parameters
 
 ```powershell
-.\choose-project.ps1 [-Mode <claude|opencode>] [-OpenCodeSessionMode <projects|sessions>]
+.\choose-project.ps1 [-Mode <auto|claude|opencode>] [-OpenCodeSessionMode <projects|sessions>]
 ```
 
 | Parameter | Values | Default |
 |-----------|--------|---------|
-| `-Mode` | `claude`, `opencode` | `claude` |
+| `-Mode` | `auto`, `claude`, `opencode` | `auto` |
 | `-OpenCodeSessionMode` | `projects`, `sessions` | `projects` |
+
+**Mode Details:**
+- `auto` (Default): Smart detection - tries Claude first, falls back to OpenCode, shows combined setup guidance if neither found
+- `claude`: Explicitly use Claude projects browser
+- `opencode`: Explicitly use OpenCode projects browser
 
 ### Examples
 
 ```powershell
-# Claude projects
+# Auto-detection (default - tries Claude first, then OpenCode)
 .\choose-project.ps1
 
-# Claude projects (explicit)
+# Explicit auto-mode
+.\choose-project.ps1 -Mode auto
+
+# Claude projects
 .\choose-project.ps1 -Mode claude
 
 # OpenCode projects only
