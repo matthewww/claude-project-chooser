@@ -21,7 +21,7 @@ A system tray application that sits in your Windows taskbar. Click the icon for 
 ## 🚀 Agentic Project Chooser (choose-agentic-project.ps1)
 
 ### What Is It?
-A single, consolidated PowerShell script that works with **both Claude and OpenCode** projects. Includes session browsing and smart auto-detection. Control behavior via command-line flags in `jmp.bat` and `jomp.bat`.
+A single, consolidated PowerShell script that works with **both Claude and OpenCode** projects. Includes session browsing and smart auto-detection. Control behavior via command-line flags in `jmp.bat`.
 
 ### Quick Start
 
@@ -30,8 +30,6 @@ jmp                          # Smart auto-detection (Claude → OpenCode)
 jmp --claude                 # Claude projects (explicit)
 jmp --opencode               # OpenCode projects
 jmp --opencode --sessions    # OpenCode with session browser
-jomp                         # OpenCode projects
-jomp --sessions              # OpenCode with sessions
 ```
 
 ### Features
@@ -43,16 +41,11 @@ jomp --sessions              # OpenCode with sessions
 - ⚡ **Fast Performance** - 5-minute caching for speed
 - 🛡️ **Robust Error Handling** - Helpful guidance for missing directories, invalid paths, and more
 
-### Configuration Examples
+### Configuration
 
-**jmp.bat** (main launcher - all options):
+**jmp.bat** (single launcher - all options):
 ```batch
-jmp [--claude|--opencode] [--sessions]
-```
-
-**jomp.bat** (OpenCode launcher - simplified):
-```batch
-jomp [--sessions]
+jmp [--auto|--claude|--opencode] [--sessions]
 ```
 
 ### Full Documentation
@@ -299,8 +292,7 @@ Both versions:
 ```
 claude-project-chooser/
 ├── choose-agentic-project.ps1  # Main unified script (all features)
-├── jmp.bat                      # Main launcher with auto-detection
-├── jomp.bat                     # OpenCode launcher
+├── jmp.bat                      # Single launcher with all options
 ├── install.ps1                  # CLI installer for PATH setup
 ├── build.ps1                    # Taskbar app build script
 ├── windows-app/                 # Windows taskbar app

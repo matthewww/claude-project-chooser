@@ -43,24 +43,20 @@ This is also the **default behavior when no mode is specified**.
 
 ### Via Batch Files
 
-Both `jmp.bat` and `jomp.bat` are fully configurable using command-line flags.
+`jmp.bat` is fully configurable using command-line flags.
 
-**jmp.bat** (Unified Launcher)
+**jmp.bat** (Single Launcher)
 ```batch
 jmp [--auto|--claude|--opencode] [--sessions]
-```
-
-**jomp.bat** (OpenCode-Focused)
-```batch
-jomp [--sessions]
 ```
 
 ### Flags Explained
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--claude` | Use Claude project browser | ✓ (jmp only) |
-| `--opencode` | Use OpenCode project browser | ✗ (for jomp) |
+| `--auto` | Smart auto-detection (Claude → OpenCode) | ✓ |
+| `--claude` | Use Claude project browser | Optional |
+| `--opencode` | Use OpenCode project browser | Optional |
 | `--sessions` | Enable session browsing for OpenCode | Disabled |
 
 ## Usage Examples
@@ -81,7 +77,6 @@ Displays all OpenCode projects, opens directly without session selection.
 ### Example 3: Browse OpenCode with Sessions
 ```batch
 jmp --opencode --sessions
-jomp --sessions
 ```
 Displays projects first, allows selecting a project to view its sessions.
 
@@ -210,8 +205,7 @@ call jmp --opencode --sessions
 
 ```
 choose-agentic-project.ps1 # Single unified script (all features consolidated)
-jmp.bat                    # Main launcher with auto-detection (configurable)
-jomp.bat                   # OpenCode launcher (configurable)
+jmp.bat                    # Single launcher with all options (configurable)
 install.ps1                # CLI installer for PATH setup
 ```
 
@@ -223,7 +217,6 @@ Add to PowerShell profile (`$PROFILE`):
 
 ```powershell
 function jmp { & 'C:\path\to\jmp.bat' @args }
-function jomp { & 'C:\path\to\jomp.bat' @args }
 ```
 
 Then use directly:
