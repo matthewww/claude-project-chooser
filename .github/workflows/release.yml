@@ -159,7 +159,7 @@ jobs:
           
           # Create CLI package with all necessary files
           zip -j "release/ClaudeProjectChooser-CLI-$version.zip" \
-            choose-claude-project.ps1 \
+            choose-agentic-project.ps1 \
             jmp.bat \
             install.ps1 \
             README.md
@@ -209,7 +209,7 @@ jobs:
         id: release_notes
         run: |
           cat > release-notes.md << 'EOF'
-          ## Claude Project Chooser v${{ steps.version.outputs.VERSION }}
+          ## Agentic Project Chooser v${{ steps.version.outputs.VERSION }}
           
           ### Downloads
           
@@ -224,7 +224,7 @@ jobs:
           
           #### CLI Version (PowerShell)
           
-          - `ClaudeProjectChooser-CLI-${{ steps.version.outputs.VERSION }}.zip` (Original CLI tool - `jmp` command)
+          - `ClaudeProjectChooser-CLI-${{ steps.version.outputs.VERSION }}.zip` (CLI tool - `jmp` command)
           
           ### Installation
           
@@ -248,16 +248,14 @@ jobs:
           
           ### What's Included
           
-          - System tray application for quick access to Claude projects
-          - Original CLI tool for terminal users
+          - System tray application for quick access to Claude/OpenCode projects
+          - CLI tool for terminal users
           - Both versions can coexist on the same system
           
           ### Documentation
           
           - [README.md](README.md) - Overview of both versions
-          - [TASKBAR_APP_DESIGN.md](TASKBAR_APP_DESIGN.md) - Architecture details
-          - [QUICKSTART.md](QUICKSTART.md) - Quick start guide
-          - [COMPARISON.md](COMPARISON.md) - CLI vs Taskbar comparison
+          - [windows-app/README.md](windows-app/README.md) - Windows app documentation
           
           ---
           
