@@ -1,9 +1,44 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 param()
 $ProjectsDir = Join-Path $env:USERPROFILE ".claude\projects"
 $CacheFile = "$env:TEMP\.claude-projects-cache.txt"
 $CacheMaxAgeMinutes = 5
 $PageSize = 10
+
+# ==================== Error Handling Functions ====================
+function Show-DirectoryNotFoundError {
+    Clear-Host
+    Write-Host "`n❌ ERROR: Claude projects directory not found`n" -ForegroundColor Red
+    Write-Host "Expected location: $ProjectsDir`n" -ForegroundColor Yellow
+    Write-Host "To use Claude Project Chooser:" -ForegroundColor Cyan
+    Write-Host "  1. Install Claude Code (if not already installed)" -ForegroundColor White
+    Write-Host "  2. Create or open a project in Claude Code" -ForegroundColor White
+    Write-Host "  3. This will create the .claude/projects directory" -ForegroundColor White
+    Write-Host "  4. Run this tool again`n" -ForegroundColor White
+    Write-Host "Need help? Visit: https://claude.ai" -ForegroundColor DarkGray
+    exit 1
+}
+
+function Show-NoProjectsError {
+    Clear-Host
+    Write-Host "`n⚠️  No projects found`n" -ForegroundColor Yellow
+    Write-Host "Looking in: $ProjectsDir`n" -ForegroundColor Gray
+    Write-Host "The directory exists but contains no projects." -ForegroundColor White
+    Write-Host "`nTo add projects:" -ForegroundColor Cyan
+    Write-Host "  1. Open Claude Code" -ForegroundColor White
+    Write-Host "  2. Create or open a project" -ForegroundColor White
+    Write-Host "  3. Run this tool again`n" -ForegroundColor White
+    exit 1
+}
+
+function Show-InvalidPathError {
+    param([string]$InvalidPath)
+    Write-Host "Error: Invalid path" -ForegroundColor Red
+    Write-Host "Path: $InvalidPath" -ForegroundColor Yellow
+    Write-Host "This directory no longer exists or is not accessible.`n" -ForegroundColor White
+}
+
+# ==================== Helper Functions ====================
 function Get-ActualProjectPath {
     param([string]$SessionFolder)
     $jsonlFile = Get-ChildItem -Path $SessionFolder -Filter "*.jsonl" -File | Select-Object -First 1
@@ -31,24 +66,64 @@ function Get-ProjectList {
     if (Test-Path $CacheFile) {
         $CacheAge = (Get-Date) - (Get-Item $CacheFile).LastWriteTime
         if ($CacheAge.TotalMinutes -lt $CacheMaxAgeMinutes) {
-            $cached = @(Get-Content $CacheFile | ConvertFrom-Json)
-            return @($cached | Where-Object { -not [string]::IsNullOrWhiteSpace($_.fullPath) })
+            try {
+                $cached = @(Get-Content $CacheFile | ConvertFrom-Json)
+                $validCache = @($cached | Where-Object { -not [string]::IsNullOrWhiteSpace($_.fullPath) })
+                if ($validCache.Count -gt 0) {
+                    return @($validCache)
+                }
+            } catch { 
+                # Cache is corrupted, ignore and reload
+                Remove-Item -Path $CacheFile -Force -ErrorAction SilentlyContinue | Out-Null
+            }
         }
     }
-    $projectDirs = Get-ChildItem -Path $ProjectsDir -Directory | Sort-Object -Property LastWriteTime
+    
+    # Validate directory exists
+    if (-not (Test-Path $ProjectsDir)) {
+        Show-DirectoryNotFoundError
+    }
+    
     $projectList = @()
+    
+    try {
+        $projectDirs = @(Get-ChildItem -Path $ProjectsDir -Directory -ErrorAction Stop | Sort-Object -Property LastWriteTime)
+    } catch {
+        Write-Host "Error accessing projects directory: $_" -ForegroundColor Yellow
+        exit 1
+    }
+    
+    # Check if any projects were found
+    if ($projectDirs.Count -eq 0) {
+        Show-NoProjectsError
+    }
+    
     foreach ($dir in $projectDirs) {
-        $actualPath = Get-ActualProjectPath $dir.FullName
-        if ($actualPath -and -not [string]::IsNullOrWhiteSpace($actualPath)) {
-            $relativeTime = Format-RelativeTime $dir.LastWriteTime
-            $projectList += @{ sessionName = $dir.Name; displayName = $actualPath; fullPath = $actualPath; modified = $relativeTime }
+        try {
+            $actualPath = Get-ActualProjectPath $dir.FullName
+            if ($actualPath -and -not [string]::IsNullOrWhiteSpace($actualPath)) {
+                $relativeTime = Format-RelativeTime $dir.LastWriteTime
+                $projectList += @{ sessionName = $dir.Name; displayName = $actualPath; fullPath = $actualPath; modified = $relativeTime }
+            }
+        } catch {
+            Write-Host "Warning: Could not read project folder $($dir.Name): $_" -ForegroundColor DarkYellow
         }
     }
-    if ($projectList.Count -gt 0) { $projectList | ConvertTo-Json | Set-Content $CacheFile }
+    
+    if ($projectList.Count -gt 0) { 
+        try {
+            $projectList | ConvertTo-Json | Set-Content $CacheFile -ErrorAction SilentlyContinue
+        } catch { 
+            # Cache write failed, but we still have the data
+        }
+    }
+    
     return @($projectList)
 }
 $allProjects = Get-ProjectList
-if ($allProjects.Count -eq 0) { Write-Error "No projects found"; exit 1 }
+if ($allProjects.Count -eq 0) { 
+    Show-NoProjectsError
+}
 function Show-Page {
     param([int]$Offset, [int]$CurrentIndex)
     $pageStart = $Offset
@@ -105,8 +180,14 @@ while ($true) {
             Remove-Item -Path $CacheFile -Force -ErrorAction SilentlyContinue | Out-Null
             $script:allProjects = Get-ProjectList
             if ($allProjects.Count -eq 0) {
-                Write-Error "No projects found after refresh"
-                exit 1
+                Write-Host "No projects found after refresh" -ForegroundColor Yellow
+                Start-Sleep -Seconds 2
+                # Return to main menu
+                Clear-Host
+                Write-Host "`nClaude Project Chooser (jmp)" -ForegroundColor Cyan
+                Write-Host "Up/Down ➡️Choose | Enter ➡️Launch | Esc ➡️Exit`n" -ForegroundColor DarkGray
+                Show-Page $pageOffset $selectedIndex
+                continue
             }
             $selectedIndex = $allProjects.Count - 1
             $pageOffset = [Math]::Max(0, $allProjects.Count - $PageSize)
@@ -119,9 +200,21 @@ while ($true) {
     $projectPath = $allProjects[$selectedIndex].fullPath
     if ($projectPath -is [array]) { $projectPath = $projectPath[0] }
     $projectPath = $projectPath.Trim()
-    if ([string]::IsNullOrWhiteSpace($projectPath) -or -not (Test-Path $projectPath)) {
-        Write-Host "Error: Invalid path" -ForegroundColor Red
+    
+    if ([string]::IsNullOrWhiteSpace($projectPath)) {
+        Write-Host "Error: No path specified" -ForegroundColor Red
         Start-Sleep -Seconds 2
+        Clear-Host
+        continue
+    }
+    
+    if (-not (Test-Path $projectPath)) {
+        Clear-Host
+        Show-InvalidPathError -InvalidPath $projectPath
+        Write-Host "This project path no longer exists." -ForegroundColor Yellow
+        Write-Host "You may need to remove it from your projects or verify the location." -ForegroundColor Yellow
+        Write-Host "`nPress any key to continue..." -ForegroundColor DarkGray
+        $null = [Console]::ReadKey($true)
         Clear-Host
         continue
     }
