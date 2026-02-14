@@ -1,8 +1,8 @@
-# Claude Project Chooser
+# Agentic Project Chooser
 
-[![Build and Test](https://github.com/matthewww/claude-project-chooser/actions/workflows/build.yml/badge.svg)](https://github.com/matthewww/claude-project-chooser/actions/workflows/build.yml)
-[![Release](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml/badge.svg)](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml)
-[![GitHub release](https://img.shields.io/github/v/release/matthewww/claude-project-chooser)](https://github.com/matthewww/claude-project-chooser/releases)
+[![Build and Test](https://github.com/matthewww/agentic-project-chooser/actions/workflows/build.yml/badge.svg)](https://github.com/matthewww/agentic-project-chooser/actions/workflows/build.yml)
+[![Release](https://github.com/matthewww/agentic-project-chooser/actions/workflows/release.yml/badge.svg)](https://github.com/matthewww/agentic-project-chooser/actions/workflows/release.yml)
+[![GitHub release](https://img.shields.io/github/v/release/matthewww/agentic-project-chooser)](https://github.com/matthewww/agentic-project-chooser/releases)
 
 Quick access to your Claude Code projects and OpenCode sessions with one unified tool!
 
@@ -151,7 +151,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ## 📁 File Structure
 
 ```
-claude-project-chooser/
+agentic-project-chooser/
 ├── choose-agentic-project.ps1  # Main unified script (all features)
 ├── jmp.bat                      # Single launcher
 ├── install.ps1                  # Optional PATH installer
@@ -170,7 +170,7 @@ claude-project-chooser/
 ### Installation
 
 **Pre-built Release (Recommended):**
-1. Go to [Releases](https://github.com/matthewww/claude-project-chooser/releases)
+1. Go to [Releases](https://github.com/matthewww/agentic-project-chooser/releases)
 2. Download `ClaudeProjectChooser-X.X.X-win-x64.zip`
 3. Extract and run `ClaudeProjectChooser.exe`
 
