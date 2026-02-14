@@ -19,6 +19,25 @@ param(
 # ==================== Configuration ====================
 $PageSize = 10
 
+# UI Symbols - using ASCII-compatible characters for terminal compatibility
+$UI = @{
+    Arrow = '->'           # Navigation arrows (compatible with all terminals)
+    Pipe = '|'             # Vertical pipe for separation
+    Check = '>'            # Selection indicator
+    Space = ' '            # Selection placeholder
+    Scroll = '...'         # Scroll indicator
+    KeyUp = 'Up/Down'      # Up/down arrow keys
+    KeyEnter = 'Enter'     # Enter key
+    KeyEsc = 'Esc'         # Escape key
+}
+
+# Error/status icons that work across terminals
+$Icons = @{
+    Error = '[!]'          # Error indicator
+    Warning = '[!]'        # Warning indicator
+    Info = '[*]'           # Information indicator
+}
+
 # Detect available modes if auto mode is selected
 $detectedMode = $Mode
 $claudeProjectsDir = Join-Path $env:USERPROFILE ".claude\projects"
@@ -53,6 +72,14 @@ if ($detectedMode -eq 'claude') {
 
 # ==================== Error Handling Functions ====================
 function Show-DirectoryNotFoundError {
+    <#
+    .SYNOPSIS
+        Display error when projects directory is not found
+    .PARAMETER MissingDir
+        The directory path that was not found
+    .PARAMETER DetectedMode
+        The mode that was detected (claude or opencode)
+    #>
     param(
         [string]$MissingDir,
         [string]$DetectedMode
@@ -66,7 +93,7 @@ function Show-DirectoryNotFoundError {
     
     if ($claudeMissing -and $opencodeMissing) {
         # Both missing - show combined guidance
-        Write-Host "`n❌ ERROR: No projects found`n" -ForegroundColor Red
+        Write-Host "`n$($Icons.Error) ERROR: No projects found`n" -ForegroundColor Red
         Write-Host "Neither Claude Code nor OpenCode projects directory found." -ForegroundColor Yellow
         Write-Host "Expected locations:" -ForegroundColor Yellow
         Write-Host "  • $(Join-Path $env:USERPROFILE '.claude\projects')" -ForegroundColor DarkGray
@@ -85,7 +112,7 @@ function Show-DirectoryNotFoundError {
         Write-Host "  3. This tool will find it automatically`n" -ForegroundColor DarkGray
     } else {
         # One tool is available but its directory is empty
-        Write-Host "`n❌ ERROR: $DetectedMode projects directory not found`n" -ForegroundColor Red
+        Write-Host "`n$($Icons.Error) ERROR: $DetectedMode projects directory not found`n" -ForegroundColor Red
         Write-Host "Expected location: $MissingDir`n" -ForegroundColor Yellow
         
         switch ($DetectedMode.ToLower()) {
@@ -113,13 +140,21 @@ function Show-DirectoryNotFoundError {
 }
 
 function Show-NoProjectsError {
+    <#
+    .SYNOPSIS
+        Display error when projects directory exists but is empty
+    .PARAMETER Mode
+        The mode being used (claude or opencode)
+    .PARAMETER ProjectsDir
+        Path to the projects directory that is empty
+    #>
     param(
         [string]$Mode,
         [string]$ProjectsDir
     )
     
     Clear-Host
-    Write-Host "`n⚠️  No projects found`n" -ForegroundColor Yellow
+    Write-Host "`n$($Icons.Warning) No projects found`n" -ForegroundColor Yellow
     Write-Host "Looking in: $ProjectsDir`n" -ForegroundColor Gray
     
     switch ($Mode.ToLower()) {
@@ -143,6 +178,12 @@ function Show-NoProjectsError {
 }
 
 function Show-InvalidPathError {
+    <#
+    .SYNOPSIS
+        Display error when a selected project path no longer exists
+    .PARAMETER InvalidPath
+        The project path that is invalid
+    #>
     param(
         [string]$InvalidPath
     )
@@ -153,6 +194,14 @@ function Show-InvalidPathError {
 }
 
 function Test-DirectoriesExist {
+    <#
+    .SYNOPSIS
+        Validate that projects directory exists and contains at least one project
+    .PARAMETER DetectedMode
+        The detected mode (used for error messages)
+    .RETURNS
+        $true if valid, $false otherwise (function exits with code 1 on error)
+    #>
     param(
         [string]$DetectedMode
     )
@@ -175,6 +224,14 @@ function Test-DirectoriesExist {
 
 # ==================== Helper Functions ====================
 function Format-RelativeTime {
+    <#
+    .SYNOPSIS
+        Convert a datetime to a human-readable relative time string
+    .PARAMETER Date
+        The datetime to format
+    .EXAMPLE
+        Format-RelativeTime (Get-Date).AddHours(-2)  # Returns "2h ago"
+    #>
     param([datetime]$Date)
     $now = Get-Date
     $diff = $now - $Date
@@ -187,6 +244,17 @@ function Format-RelativeTime {
 
 # ==================== Claude Mode Functions ====================
 function Get-ActualProjectPath {
+    <#
+    .SYNOPSIS
+        Extract the actual project working directory from Claude session metadata
+    .PARAMETER SessionFolder
+        Path to the Claude session folder
+    .RETURNS
+        String containing the project's working directory path
+    .DESCRIPTION
+        Claude stores project metadata in .jsonl files within session folders.
+        This function reads the most recent jsonl file and extracts the 'cwd' field.
+    #>
     param([string]$SessionFolder)
     $jsonlFile = Get-ChildItem -Path $SessionFolder -Filter "*.jsonl" -File | Select-Object -First 1
     if ($jsonlFile) {
@@ -201,6 +269,15 @@ function Get-ActualProjectPath {
 }
 
 function Get-ClaudeProjectList {
+    <#
+    .SYNOPSIS
+        Get list of Claude projects from the local projects directory
+    .RETURNS
+        Array of project hashtables with: sessionName, displayName, fullPath, modified, type
+    .DESCRIPTION
+        Reads from ~/.claude/projects directory and caches results for 5 minutes.
+        Each Claude project has a session folder containing a .jsonl metadata file.
+    #>
     if (Test-Path $CacheFile) {
         $CacheAge = (Get-Date) - (Get-Item $CacheFile).LastWriteTime
         if ($CacheAge.TotalMinutes -lt $CacheMaxAgeMinutes) {
@@ -257,6 +334,16 @@ function Get-ClaudeProjectList {
 
 # ==================== OpenCode Mode Functions ====================
 function Get-OpenCodeProjectList {
+    <#
+    .SYNOPSIS
+        Get list of OpenCode projects from the local projects directory
+    .RETURNS
+        Array of project hashtables with: id, displayName, worktree, fullPath, vcs, modified, type
+    .DESCRIPTION
+        Reads from ~/.local/share/opencode/storage/project directory where OpenCode stores .json files.
+        Each project file contains metadata including the working tree directory path.
+        Verifies paths still exist before including in results.
+    #>
     if (Test-Path $CacheFile) {
         $CacheAge = (Get-Date) - (Get-Item $CacheFile).LastWriteTime
         if ($CacheAge.TotalMinutes -lt $CacheMaxAgeMinutes) {
@@ -325,6 +412,17 @@ function Get-OpenCodeProjectList {
 }
 
 function Get-OpenCodeSessionsForProject {
+    <#
+    .SYNOPSIS
+        Get list of OpenCode sessions for a specific project
+    .PARAMETER ProjectId
+        The project ID to get sessions for
+    .RETURNS
+        Array of session hashtables with: id, slug, displayName, fullPath, modified, additions, deletions, files, type
+    .DESCRIPTION
+        Each project has a session directory under ~/.local/share/opencode/storage/session/<projectid>/.
+        Sessions contain metadata about code changes and workspace state.
+    #>
     param([string]$ProjectId)
     
     $projectSessionDir = Join-Path $SessionsDir $ProjectId
@@ -370,17 +468,30 @@ function Get-OpenCodeSessionsForProject {
 
 # ==================== Display Functions ====================
 function Show-Page {
+    <#
+    .SYNOPSIS
+        Displays a paginated list of items with selection indicator
+    .PARAMETER Offset
+        Starting index for the current page
+    .PARAMETER CurrentIndex
+        Currently selected item index
+    .PARAMETER Items
+        Array of items to display
+    .PARAMETER IsSessionMode
+        Whether displaying sessions (affects available commands)
+    #>
     param([int]$Offset, [int]$CurrentIndex, [object[]]$Items, [bool]$IsSessionMode = $false)
     
     $pageStart = $Offset
     $pageEnd = [Math]::Min($Offset + $PageSize, $Items.Count)
     
     if ($Offset -gt 0) { Write-Host "  (scroll up for older)" -ForegroundColor DarkGray }
+    
     for ($i = $pageStart; $i -lt $pageEnd; $i++) {
         $isSelected = ($i -eq $CurrentIndex)
         $item = $Items[$i]
         $color = if ($isSelected) { "Green" } else { "White" }
-        $marker = if ($isSelected) { ">" } else { " " }
+        $marker = if ($isSelected) { $UI.Check } else { $UI.Space }
         
         Write-Host "  $marker $($item.displayName)" -ForegroundColor $color -NoNewline
         Write-Host " ($($item.modified))" -ForegroundColor DarkGray
@@ -392,16 +503,124 @@ function Show-Page {
             }
         }
     }
+    
     if ($pageEnd -lt $Items.Count) { Write-Host "  (scroll down for newer)" -ForegroundColor DarkGray }
+    
+    # Show available commands based on mode
+    Write-Host "  " -NoNewline
+    Write-Host "[R]efresh" -ForegroundColor DarkGray -NoNewline
+    if ($IsSessionMode) { Write-Host " | [B]ack" -ForegroundColor DarkGray -NoNewline }
+    Write-Host " | [Q]uit" -ForegroundColor DarkGray
+}
+
+# ==================== Key Handling Functions ====================
+function Handle-NavigationKey {
+    <#
+    .SYNOPSIS
+        Process navigation keys (Up/Down arrows)
+    #>
+    param(
+        [int]$CurrentIndex,
+        [int]$ItemCount,
+        [ConsoleKeyInfo]$Key,
+        [ref]$SelectedIndex,
+        [ref]$PageOffset
+    )
+    
+    if ($key.Key -eq [ConsoleKey]::UpArrow) {
+        if ($CurrentIndex -gt 0) {
+            $SelectedIndex.Value = $CurrentIndex - 1
+            if ($SelectedIndex.Value -lt $PageOffset.Value) {
+                $PageOffset.Value = [Math]::Max(0, $SelectedIndex.Value - $PageSize + 1)
+            }
+        }
+    }
+    elseif ($key.Key -eq [ConsoleKey]::DownArrow) {
+        if ($CurrentIndex -lt $ItemCount - 1) {
+            $SelectedIndex.Value = $CurrentIndex + 1
+            if ($SelectedIndex.Value -ge $PageOffset.Value + $PageSize) {
+                $PageOffset.Value = $SelectedIndex.Value - $PageSize + 1
+            }
+        }
+    }
+}
+
+function Handle-ControlKey {
+    <#
+    .SYNOPSIS
+        Process control keys (R for Refresh, Q for Quit, B for Back)
+    .RETURNS
+        Hashtable with action: 'continue', 'refresh', 'back', 'quit', or $null for no action
+    #>
+    param(
+        [ConsoleKeyInfo]$Key,
+        [bool]$IsSessionMode
+    )
+    
+    $char = [char]$key.KeyChar
+    
+    if ($char -eq [char]13) {  # Enter key (also handled by $key.Key -eq [ConsoleKey]::Enter)
+        return @{ action = 'select' }
+    }
+    elseif ($key.Key -eq [ConsoleKey]::Escape) {
+        if ($IsSessionMode) {
+            return @{ action = 'back' }
+        } else {
+            return @{ action = 'quit' }
+        }
+    }
+    elseif ($char -eq 'r' -or $char -eq 'R') {
+        return @{ action = 'refresh' }
+    }
+    elseif ($char -eq 'q' -or $char -eq 'Q') {
+        return @{ action = 'quit' }
+    }
+    elseif (($char -eq 'b' -or $char -eq 'B') -and $IsSessionMode) {
+        return @{ action = 'back' }
+    }
+    
+    return $null
+}
+
+function Refresh-ItemList {
+    <#
+    .SYNOPSIS
+        Refresh the list of items based on current mode
+    .PARAMETER IsSessionMode
+        Whether in session mode
+    .PARAMETER ProjectId
+        Project ID (required for session mode)
+    #>
+    param([bool]$IsSessionMode, [string]$ProjectId = $null)
+    
+    Clear-Host
+    Write-Host "Refreshing..." -ForegroundColor Cyan
+    Start-Sleep -Milliseconds 800
+    Remove-Item -Path $CacheFile -Force -ErrorAction SilentlyContinue | Out-Null
+    
     if ($IsSessionMode) {
-        Write-Host "  [B]ack to projects | [R]efresh | [Q]uit" -ForegroundColor DarkGray
+        return Get-OpenCodeSessionsForProject $ProjectId
     } else {
-        Write-Host "  [R]efresh list | [Q]uit" -ForegroundColor DarkGray
+        if ($detectedMode -eq 'claude') {
+            return Get-ClaudeProjectList
+        } else {
+            return Get-OpenCodeProjectList
+        }
     }
 }
 
 # ==================== Main UI Logic ====================
 function Show-Chooser {
+    <#
+    .SYNOPSIS
+        Main interactive chooser interface for selecting projects or sessions
+    .PARAMETER Items
+        Array of projects or sessions to choose from
+    .PARAMETER IsSessionMode
+        Whether displaying sessions instead of projects
+    .PARAMETER ParentProject
+        Parent project (for context in session mode)
+    #>
     param([object[]]$Items, [bool]$IsSessionMode = $false, [object]$ParentProject = $null)
     
     if ($Items.Count -eq 0) {
@@ -409,7 +628,7 @@ function Show-Chooser {
         if ($IsSessionMode) {
             Write-Host "Press any key to go back..."
             $null = [Console]::ReadKey($true)
-            return $false
+            return @{ selected = $false }
         } else {
             Write-Error "No projects found"
             exit 1
@@ -425,64 +644,51 @@ function Show-Chooser {
         
         if ($IsSessionMode) {
             Write-Host "Project: $($ParentProject.displayName)" -ForegroundColor Green
-            Write-Host "Up/Down ➡️ Choose | Enter ➡️ Open | B ➡️ Back | Esc ➡️ Exit`n" -ForegroundColor DarkGray
-        } else {
-            Write-Host "Up/Down ➡️ Choose | Enter ➡️ Open | Esc ➡️ Exit`n" -ForegroundColor DarkGray
         }
+        Write-Host "$($UI.KeyUp) $($UI.Arrow) Choose | $($UI.KeyEnter) $($UI.Arrow) Open" -ForegroundColor DarkGray -NoNewline
+        if ($IsSessionMode) {
+            Write-Host " | B $($UI.Arrow) Back" -ForegroundColor DarkGray -NoNewline
+        }
+        Write-Host " | $($UI.KeyEsc) $($UI.Arrow) Exit`n" -ForegroundColor DarkGray
         
         Show-Page $pageOffset $selectedIndex $Items $IsSessionMode
         
         $key = [Console]::ReadKey($true)
-        if ($key.Key -eq [ConsoleKey]::UpArrow) {
-            if ($selectedIndex -gt 0) {
-                $selectedIndex--
-                if ($selectedIndex -lt $pageOffset) { $pageOffset = [Math]::Max(0, $selectedIndex - $PageSize + 1) }
-            }
-        }
-        elseif ($key.Key -eq [ConsoleKey]::DownArrow) {
-            if ($selectedIndex -lt $Items.Count - 1) {
-                $selectedIndex++
-                if ($selectedIndex -ge $pageOffset + $PageSize) { $pageOffset = $selectedIndex - $PageSize + 1 }
-            }
-        }
-        elseif ($key.Key -eq [ConsoleKey]::Enter) {
-            return @{ selected = $true; index = $selectedIndex }
-        }
-        elseif ($key.Key -eq [ConsoleKey]::Escape) {
-            if ($IsSessionMode) { return @{ selected = $false } }
-            else { exit 0 }
-        }
-        elseif ($key.KeyChar -eq 'r' -or $key.KeyChar -eq 'R') {
-            Clear-Host
-            Write-Host "Refreshing..." -ForegroundColor Cyan
-            Start-Sleep -Milliseconds 800
-            Remove-Item -Path $CacheFile -Force -ErrorAction SilentlyContinue | Out-Null
-            if ($IsSessionMode) {
-                $script:allItems = Get-OpenCodeSessionsForProject $ParentProject.id
-                if ($allItems.Count -eq 0) {
-                    Write-Host "No sessions found after refresh" -ForegroundColor Yellow
-                    Start-Sleep -Seconds 1
+        
+        # Try to handle as control key first
+        $controlAction = Handle-ControlKey $key $IsSessionMode
+        
+        if ($controlAction) {
+            switch ($controlAction.action) {
+                'select' {
+                    return @{ selected = $true; index = $selectedIndex }
+                }
+                'refresh' {
+                    $newItems = Refresh-ItemList $IsSessionMode $(if ($IsSessionMode) { $ParentProject.id })
+                    if ($newItems.Count -eq 0) {
+                        if ($IsSessionMode) {
+                            Write-Host "No items found after refresh" -ForegroundColor Yellow
+                            Start-Sleep -Seconds 1
+                            return @{ selected = $false }
+                        } else {
+                            Write-Error "No items found after refresh"
+                            exit 1
+                        }
+                    }
+                    $Items = $newItems
+                    $selectedIndex = $Items.Count - 1
+                    $pageOffset = [Math]::Max(0, $Items.Count - $PageSize)
+                }
+                'back' {
                     return @{ selected = $false }
                 }
-            } else {
-                if ($detectedMode -eq 'claude') {
-                    $script:allItems = Get-ClaudeProjectList
-                } else {
-                    $script:allItems = Get-OpenCodeProjectList
-                }
-                if ($allItems.Count -eq 0) {
-                    Write-Error "No projects found after refresh"
-                    exit 1
+                'quit' {
+                    exit 0
                 }
             }
-            $selectedIndex = $Items.Count - 1
-            $pageOffset = [Math]::Max(0, $Items.Count - $PageSize)
-        }
-        elseif ($key.KeyChar -eq 'q' -or $key.KeyChar -eq 'Q') {
-            exit 0
-        }
-        elseif (($key.KeyChar -eq 'b' -or $key.KeyChar -eq 'B') -and $IsSessionMode) {
-            return @{ selected = $false }
+        } else {
+            # Handle navigation keys
+            Handle-NavigationKey $selectedIndex $Items.Count $key ([ref]$selectedIndex) ([ref]$pageOffset)
         }
     }
 }
