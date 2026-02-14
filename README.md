@@ -4,32 +4,24 @@
 [![Release](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml/badge.svg)](https://github.com/matthewww/claude-project-chooser/actions/workflows/release.yml)
 [![GitHub release](https://img.shields.io/github/v/release/matthewww/claude-project-chooser)](https://github.com/matthewww/claude-project-chooser/releases)
 
-Quick access to your Claude Code projects and OpenCode sessions - available in multiple flavors!
+Quick access to your Claude Code projects and OpenCode sessions with one unified tool!
 
 ![jmp demo](./image.png)
 
-## 🎯 Three Ways to Use
+## 🎯 Features
 
-### 1️⃣ Unified Project Chooser (NEW! 🚀)
-Single configurable tool for both Claude and OpenCode projects with `jmp.bat` and `jomp.bat` configuration.
+### 🚀 Agentic Project Chooser (Single Unified Script)
+Interactive project browser with smart fallback, session browsing, and comprehensive error handling. Works with both Claude and OpenCode projects.
 
-### 2️⃣ OpenCode Session Chooser 
-Interactive menu for browsing OpenCode projects and sessions with full session details.
-
-### 3️⃣ Command Line (CLI) - `jmp` Command
-A PowerShell tool for terminal users. Type `jmp` to get an interactive menu.
-
-### 4️⃣ Windows Taskbar App
+### 🖥️ Windows Taskbar App
 A system tray application that sits in your Windows taskbar. Click the icon for instant access to your projects.
-
-**Choose the version that fits your workflow!** All can be installed side-by-side.
 
 ---
 
-## 🚀 Unified Project Chooser (choose-project.ps1)
+## 🚀 Agentic Project Chooser (choose-agentic-project.ps1)
 
 ### What Is It?
-A single, configuration-driven PowerShell script that works with **both Claude and OpenCode** projects. Control behavior via command-line flags in `jmp.bat` and `jomp.bat`.
+A single, consolidated PowerShell script that works with **both Claude and OpenCode** projects. Includes session browsing and smart auto-detection. Control behavior via command-line flags in `jmp.bat` and `jomp.bat`.
 
 ### Quick Start
 
@@ -306,35 +298,35 @@ Both versions:
 
 ```
 claude-project-chooser/
-├── choose-claude-project.ps1      # CLI script (original Claude projects)
-├── choose-opencode-session.ps1    # OpenCode interactive selector (NEW!)
-├── opencode-util.ps1              # OpenCode utility/search tool (NEW!)
-├── jmp.bat                         # CLI wrapper (original)
-├── jomp.bat                        # OpenCode wrapper (NEW!)
-├── install.ps1                     # CLI installer
-├── build.ps1                       # Taskbar app build script
-├── windows-app/                    # Windows taskbar app
+├── choose-agentic-project.ps1  # Main unified script (all features)
+├── jmp.bat                      # Main launcher with auto-detection
+├── jomp.bat                     # OpenCode launcher
+├── install.ps1                  # CLI installer for PATH setup
+├── build.ps1                    # Taskbar app build script
+├── windows-app/                 # Windows taskbar app
 │   ├── ClaudeProjectChooser.csproj  # C# project
-│   ├── Program.cs                  # Main entry point
-│   └── README.md                   # Taskbar app docs
-├── TASKBAR_APP_DESIGN.md           # Design documentation
-└── README.md                       # This file
+│   ├── Program.cs              # Main entry point
+│   └── README.md               # Taskbar app docs
+├── CHOOSE_PROJECT_GUIDE.md     # Detailed usage guide
+└── README.md                   # This file
 ```
 
 ## 🚀 Quick Start
 
-**For OpenCode Users (NEW!):**
-```powershell
-.\choose-opencode-session.ps1
+**Using the Agentic Project Chooser:**
+```batch
+jmp                          # Smart auto-detection
+jmp --claude                 # Claude projects
+jmp --opencode               # OpenCode projects
+jmp --opencode --sessions    # OpenCode with sessions
 ```
 
-**For Terminal Users:**
+**For Terminal Users (via PowerShell):**
 ```powershell
-.\install.ps1
-jmp
+.\choose-agentic-project.ps1
 ```
 
-**For GUI Users:**
+**For GUI Users (Taskbar App):**
 ```powershell
 .\build.ps1
 # Then run: windows-app/bin/Release/net8.0-windows/ClaudeProjectChooser.exe

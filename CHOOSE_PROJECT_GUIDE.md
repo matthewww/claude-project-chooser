@@ -1,10 +1,10 @@
-# Unified Project Chooser (choose-project.ps1)
+# Agentic Project Chooser (choose-agentic-project.ps1)
 
 A versatile, configurable PowerShell script that works with both **Claude Projects** and **OpenCode Projects & Sessions**. Configure your launcher with simple command-line flags.
 
 ## Overview
 
-`choose-project.ps1` is a unified project browser that automatically adapts to your chosen mode:
+`choose-agentic-project.ps1` is a unified project browser that automatically adapts to your chosen mode:
 
 - **Claude Mode**: Browse your Claude Code projects from `~/.claude/projects`
 - **OpenCode Mode**: Browse OpenCode projects from `~/.local/share/opencode/storage`
@@ -47,7 +47,7 @@ Both `jmp.bat` and `jomp.bat` are fully configurable using command-line flags.
 
 **jmp.bat** (Unified Launcher)
 ```batch
-jmp [--claude|--opencode] [--sessions]
+jmp [--auto|--claude|--opencode] [--sessions]
 ```
 
 **jomp.bat** (OpenCode-Focused)
@@ -163,7 +163,7 @@ call jmp --opencode --sessions
 ### Parameters
 
 ```powershell
-.\choose-project.ps1 [-Mode <auto|claude|opencode>] [-OpenCodeSessionMode <projects|sessions>]
+.\choose-agentic-project.ps1 [-Mode <auto|claude|opencode>] [-OpenCodeSessionMode <projects|sessions>]
 ```
 
 | Parameter | Values | Default |
@@ -180,19 +180,19 @@ call jmp --opencode --sessions
 
 ```powershell
 # Auto-detection (default - tries Claude first, then OpenCode)
-.\choose-project.ps1
+.\choose-agentic-project.ps1
 
 # Explicit auto-mode
-.\choose-project.ps1 -Mode auto
+.\choose-agentic-project.ps1 -Mode auto
 
 # Claude projects
-.\choose-project.ps1 -Mode claude
+.\choose-agentic-project.ps1 -Mode claude
 
 # OpenCode projects only
-.\choose-project.ps1 -Mode opencode
+.\choose-agentic-project.ps1 -Mode opencode
 
 # OpenCode with sessions
-.\choose-project.ps1 -Mode opencode -OpenCodeSessionMode sessions
+.\choose-agentic-project.ps1 -Mode opencode -OpenCodeSessionMode sessions
 ```
 
 ### Performance Characteristics
@@ -209,12 +209,10 @@ call jmp --opencode --sessions
 ## File Structure
 
 ```
-choose-project.ps1         # Unified script (380+ lines with error handling)
-jmp.bat                    # Claude launcher (configurable)
+choose-agentic-project.ps1 # Single unified script (all features consolidated)
+jmp.bat                    # Main launcher with auto-detection (configurable)
 jomp.bat                   # OpenCode launcher (configurable)
-choose-claude-project.ps1  # Original Claude tool (still available)
-choose-opencode-session.ps1# Original OpenCode tool (still available)
-opencode-util.ps1          # CLI utility (still available)
+install.ps1                # CLI installer for PATH setup
 ```
 
 ## Advanced Usage
@@ -370,15 +368,14 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 .\opencode-util.ps1 list-projects -Json
 ```
 
-## Backward Compatibility
+## Consolidation Note
 
-All original tools remain available and fully functional:
-- `choose-claude-project.ps1` - Original Claude chooser
-- `choose-opencode-session.ps1` - Original OpenCode chooser  
-- `opencode-util.ps1` - OpenCode CLI utility
-- `install.ps1` - Original CLI installer
+All functionality has been consolidated into a single script:
+- `choose-agentic-project.ps1` - Contains all features (Claude, OpenCode, sessions, error handling)
+- Previously separate tools have been merged into this unified implementation
+- `install.ps1` still available for PATH setup if needed
 
-The unified `choose-project.ps1` provides a modern alternative while maintaining the original scripts.
+The unified approach reduces maintenance burden while providing all original functionality.
 
 ## Version Information
 
