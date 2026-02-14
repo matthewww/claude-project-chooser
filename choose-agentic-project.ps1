@@ -552,9 +552,16 @@ while ($true) {
             continue
         }
         
-        Write-Host "`nLaunching: $projectPath`n" -ForegroundColor Green
-        $pwshExe = (Get-Command pwsh).Source
-        Start-Process -FilePath $pwshExe -ArgumentList "-NoExit", "-Command", "Set-Location '$projectPath'; claude"
-        Clear-Host
+         Write-Host "`nLaunching: $projectPath`n" -ForegroundColor Green
+         $pwshExe = (Get-Command pwsh).Source
+         
+         # Launch project - for Claude, open claude; for OpenCode, just open the directory
+         if ($detectedMode -eq 'claude') {
+             Start-Process -FilePath $pwshExe -ArgumentList "-NoExit", "-Command", "Set-Location '$projectPath'; claude"
+         } else {
+             # For OpenCode, just open the directory in a new shell
+             Start-Process -FilePath $pwshExe -ArgumentList "-NoExit", "-Command", "Set-Location '$projectPath'"
+         }
+         Clear-Host
     }
 }
