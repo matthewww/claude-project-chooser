@@ -1,12 +1,12 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-Installs the Claude Project Chooser tool to ~/.claude/bin and adds it to PATH.
+Installs the Agentic Project Chooser tool to ~/.claude/bin and adds it to PATH.
 
 .DESCRIPTION
 This script:
 1. Creates ~/.claude/bin if it doesn't exist
-2. Copies jmp.bat and choose-claude-project.ps1 to that directory
+2. Copies jmp.bat and choose-agentic-project.ps1 to that directory
 3. Adds ~/.claude/bin to the user's PATH environment variable
 4. Provides instructions for updating PATH in the current session
 
@@ -21,8 +21,8 @@ param(
 $claudeBinDir = Join-Path $env:USERPROFILE ".claude\bin"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-Write-Host "Claude Project Chooser Installer" -ForegroundColor Cyan
-Write-Host "================================`n"
+Write-Host "Agentic Project Chooser Installer" -ForegroundColor Cyan
+Write-Host "==================================`n"
 
 # Create directory if it doesn't exist
 if (-not (Test-Path $claudeBinDir)) {
@@ -33,7 +33,7 @@ if (-not (Test-Path $claudeBinDir)) {
 }
 
 # Copy files
-$filesToCopy = @("jmp.bat", "choose-claude-project.ps1")
+$filesToCopy = @("jmp.bat", "choose-agentic-project.ps1")
 foreach ($file in $filesToCopy) {
     $source = Join-Path $scriptDir $file
     $destination = Join-Path $claudeBinDir $file
@@ -60,7 +60,7 @@ if ($currentPath -contains $claudeBinDir) {
 }
 
 # Instructions
-Write-Host "`n================================" -ForegroundColor Cyan
+Write-Host "`n==================================" -ForegroundColor Cyan
 Write-Host "Installation Complete!" -ForegroundColor Green
 Write-Host "`nTo use 'jmp' in this PowerShell session, run:" -ForegroundColor Cyan
 Write-Host "`$env:Path = `"$claudeBinDir;`$env:Path`"" -ForegroundColor Gray

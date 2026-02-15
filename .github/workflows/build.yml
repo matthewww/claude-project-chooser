@@ -8,75 +8,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    name: Build Windows Taskbar App
-    runs-on: windows-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-      
-      - name: Restore dependencies
-        run: dotnet restore windows-app/ClaudeProjectChooser.csproj
-      
-      - name: Build Debug
-        run: dotnet build windows-app/ClaudeProjectChooser.csproj -c Debug --no-restore
-      
-      - name: Build Release
-        run: dotnet build windows-app/ClaudeProjectChooser.csproj -c Release --no-restore
-      
-      - name: Test Publish (win-x64)
-        run: |
-          dotnet publish windows-app/ClaudeProjectChooser.csproj `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -o test-publish
-      
-      - name: Verify build outputs
-        shell: pwsh
-        run: |
-          Write-Host "Checking build outputs..."
-          
-          $releaseExe = "windows-app/bin/Release/net8.0-windows/ClaudeProjectChooser.exe"
-          $publishExe = "test-publish/ClaudeProjectChooser.exe"
-          
-          if (Test-Path $releaseExe) {
-            Write-Host "✓ Release build successful: $releaseExe"
-            $size = (Get-Item $releaseExe).Length / 1MB
-            Write-Host "  Size: $([Math]::Round($size, 2)) MB"
-          } else {
-            Write-Host "✗ Release build failed: $releaseExe not found"
-            exit 1
-          }
-          
-          if (Test-Path $publishExe) {
-            Write-Host "✓ Publish successful: $publishExe"
-            $size = (Get-Item $publishExe).Length / 1MB
-            Write-Host "  Size: $([Math]::Round($size, 2)) MB"
-          } else {
-            Write-Host "✗ Publish failed: $publishExe not found"
-            exit 1
-          }
-          
-          Write-Host "`n✓ All builds successful!"
-      
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: build-outputs
-          path: |
-            windows-app/bin/Release/net8.0-windows/*.exe
-            test-publish/*.exe
-          retention-days: 7
-
   validate-cli:
     name: Validate CLI Scripts
     runs-on: windows-latest
@@ -92,9 +23,8 @@ jobs:
           
           # Check syntax of main scripts
           $scripts = @(
-            "choose-claude-project.ps1",
-            "install.ps1",
-            "build.ps1"
+            "choose-agentic-project.ps1",
+            "install.ps1"
           )
           
           $errors = 0
@@ -142,3 +72,7 @@ jobs:
             echo ✗ jmp.bat not found
             exit /b 1
           )
+
+  build-windows-app:
+    name: Build Windows Taskbar App
+    uses: ./.github/workflows/windows-build.yml

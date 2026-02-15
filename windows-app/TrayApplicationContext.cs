@@ -12,8 +12,6 @@ public class TrayApplicationContext : ApplicationContext
     private ProjectManager? _projectManager;
     private System.Windows.Forms.Timer? _refreshTimer;
     private bool _isRefreshing = false;
-    private bool _showAllProjects = false;
-    private const int RecentProjectLimit = 10;
 
     public TrayApplicationContext()
     {
@@ -25,21 +23,12 @@ public class TrayApplicationContext : ApplicationContext
         _projectManager = new ProjectManager();
 
         // Create context menu
-        _contextMenu = new ContextMenuStrip
-        {
-            AutoSize = false,
-            LayoutStyle = ToolStripLayoutStyle.VerticalStackWithOverflow,
-            MaximumSize = new Size(720, 600),
-            MinimumSize = new Size(420, 200),
-            Size = new Size(420, 600)
-        };
-
-        _contextMenu.Opened += (s, e) => ScrollMenuToBottom();
+        _contextMenu = new ContextMenuStrip();
 
         // Create tray icon
         _trayIcon = new NotifyIcon
         {
-            Icon = GetTrayIcon(),
+            Icon = SystemIcons.Application, // We'll use a custom icon later
             Text = "Claude Project Chooser - Click to open",
             Visible = true,
             ContextMenuStrip = _contextMenu
@@ -53,8 +42,10 @@ public class TrayApplicationContext : ApplicationContext
                 // Rebuild menu and show it
                 BuildContextMenu();
                 
-                // Show the context menu above the cursor so latest entries are visible at the bottom
-                _contextMenu.Show(Cursor.Position, ToolStripDropDownDirection.AboveRight);
+                // Show the context menu at cursor position
+                var method = typeof(NotifyIcon).GetMethod("ShowContextMenu",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                method?.Invoke(_trayIcon, null);
             }
         };
 
@@ -93,23 +84,43 @@ public class TrayApplicationContext : ApplicationContext
             // Get projects
             var projects = _projectManager.GetProjects();
 
-            if (projects.Count > RecentProjectLimit)
+            if (projects.Count == 0)
             {
-                var toggleItemText = _showAllProjects
-                    ? $"Show recent {RecentProjectLimit} only"
-                    : $"Show all projects ({projects.Count})";
-
-                var toggleItem = new ToolStripMenuItem(toggleItemText)
+                var noProjectsItem = new ToolStripMenuItem("No projects found")
                 {
-                    Font = new Font(_contextMenu.Font, FontStyle.Italic)
+                    Enabled = false
                 };
-                toggleItem.Click += (s, e) =>
-                {
-                    _showAllProjects = !_showAllProjects;
-                    BuildContextMenu();
-                };
-                _contextMenu.Items.Add(toggleItem);
+                _contextMenu.Items.Add(noProjectsItem);
             }
+            else
+            {
+                // Limit to most recent 20 projects to avoid menu becoming too large
+                var displayProjects = projects.TakeLast(20).Reverse().ToList();
+
+                foreach (var project in displayProjects)
+                {
+                    var projectItem = new ToolStripMenuItem(project.ToString())
+                    {
+                        Tag = project,
+                        ToolTipText = $"Launch Claude in:\n{project.FullPath}"
+                    };
+                    projectItem.Click += OnProjectClick;
+                    _contextMenu.Items.Add(projectItem);
+                }
+
+                if (projects.Count > 20)
+                {
+                    var moreItem = new ToolStripMenuItem($"... and {projects.Count - 20} more projects")
+                    {
+                        Enabled = false,
+                        Font = new Font(_contextMenu.Font, FontStyle.Italic)
+                    };
+                    _contextMenu.Items.Add(moreItem);
+                }
+            }
+
+            // Separator before actions
+            _contextMenu.Items.Add(new ToolStripSeparator());
 
             // Refresh button
             var refreshItem = new ToolStripMenuItem("🔄 Refresh Project List")
@@ -124,33 +135,6 @@ public class TrayApplicationContext : ApplicationContext
             aboutItem.Click += OnAboutClick;
             _contextMenu.Items.Add(aboutItem);
 
-            _contextMenu.Items.Add(new ToolStripSeparator());
-
-            if (projects.Count == 0)
-            {
-                var noProjectsItem = new ToolStripMenuItem("No projects found")
-                {
-                    Enabled = false
-                };
-                _contextMenu.Items.Add(noProjectsItem);
-            }
-            else
-            {
-                var displayProjects = _showAllProjects
-                    ? projects
-                    : projects.TakeLast(RecentProjectLimit).ToList();
-
-                foreach (var project in displayProjects)
-                {
-                    var projectItem = new ToolStripMenuItem(project.ToString())
-                    {
-                        Tag = project
-                    };
-                    projectItem.Click += OnProjectClick;
-                    _contextMenu.Items.Add(projectItem);
-                }
-            }
-
             // Separator before exit
             _contextMenu.Items.Add(new ToolStripSeparator());
 
@@ -163,8 +147,6 @@ public class TrayApplicationContext : ApplicationContext
         {
             _isRefreshing = false;
         }
-
-        UpdateContextMenuSize();
     }
 
     private void OnProjectClick(object? sender, EventArgs e)
@@ -228,76 +210,6 @@ public class TrayApplicationContext : ApplicationContext
 
         // Exit application
         Application.Exit();
-    }
-
-    private void UpdateContextMenuSize()
-    {
-        if (_contextMenu == null)
-            return;
-
-        var maxWidth = 0;
-        var totalHeight = 0;
-        foreach (ToolStripItem item in _contextMenu.Items)
-        {
-            var text = item.Text ?? string.Empty;
-            var measured = TextRenderer.MeasureText(text, _contextMenu.Font);
-            if (measured.Width > maxWidth)
-            {
-                maxWidth = measured.Width;
-            }
-
-            var preferred = item.GetPreferredSize(Size.Empty);
-            totalHeight += preferred.Height;
-        }
-
-        totalHeight += _contextMenu.Padding.Vertical + 8;
-        var workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
-        var maxHeight = Math.Max(_contextMenu.MinimumSize.Height, workingArea.Height - 40);
-
-        var targetWidth = Math.Clamp(maxWidth + 48, _contextMenu.MinimumSize.Width, _contextMenu.MaximumSize.Width);
-        var targetHeight = Math.Clamp(totalHeight, _contextMenu.MinimumSize.Height, maxHeight);
-        _contextMenu.Size = new Size(targetWidth, targetHeight);
-    }
-
-    private void ScrollMenuToBottom()
-    {
-        if (_contextMenu == null)
-            return;
-
-        if (!_contextMenu.IsHandleCreated)
-            return;
-
-        _contextMenu.BeginInvoke(() =>
-        {
-            if (_contextMenu.Items.Count > 0)
-            {
-                _contextMenu.Items[^1].Select();
-            }
-
-            var scroll = _contextMenu.VerticalScroll;
-            if (scroll.Visible)
-            {
-                scroll.Value = scroll.Maximum;
-            }
-        });
-    }
-
-    private static Icon GetTrayIcon()
-    {
-        try
-        {
-            var appIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-            if (appIcon != null)
-            {
-                return appIcon;
-            }
-        }
-        catch
-        {
-            // Fall back to default icon if extraction fails.
-        }
-
-        return SystemIcons.Application;
     }
 
     protected override void Dispose(bool disposing)
