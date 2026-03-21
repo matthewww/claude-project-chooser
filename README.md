@@ -1,6 +1,6 @@
 # Agentic Project Chooser
 
-Quick access to your Claude and OpenCode projects.
+Quick access to your Claude, OpenCode, and Copilot projects.
 
 ```bash
 jmp
@@ -16,10 +16,20 @@ Or just run `jmp.bat` directly from the repo.
 
 ## Features
 
-- Unified tool for Claude Code and OpenCode projects
-- Smart auto-detection (Claude → OpenCode)
+- Unified tool for Claude Code, OpenCode, and GitHub Copilot CLI projects
+- Smart auto-detection (Claude → OpenCode → Copilot)
 - Browse projects and select to launch
 - Optional: Browse OpenCode session history
+
+## Usage
+
+```
+jmp              # Smart auto-detection
+jmp --claude     # Claude projects explicitly
+jmp --opencode   # OpenCode projects
+jmp --copilot    # Copilot projects
+jmp --opencode --sessions  # OpenCode with session browser
+```
 
 ## Windows Taskbar App
 

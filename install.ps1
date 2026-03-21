@@ -48,6 +48,16 @@ foreach ($file in $filesToCopy) {
     }
 }
 
+# Patch jmp.bat: replace %~dp0 with the absolute install path so it works
+# regardless of which directory jmp is called from (PATH-based invocation
+# does not guarantee %~dp0 resolves to the batch file's own directory).
+$jmpBatPath = Join-Path $claudeBinDir "jmp.bat"
+$psScriptPath = "$claudeBinDir\"
+$jmpBatContent = Get-Content $jmpBatPath -Raw
+$jmpBatContent = $jmpBatContent.Replace('%~dp0', $psScriptPath)
+[System.IO.File]::WriteAllText($jmpBatPath, $jmpBatContent, [System.Text.Encoding]::ASCII)
+Write-Host "  ✓ Patched jmp.bat with absolute path" -ForegroundColor Green
+
 # Add to PATH
 $currentPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if ($currentPath -contains $claudeBinDir) {

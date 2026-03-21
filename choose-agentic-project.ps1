@@ -1,16 +1,17 @@
 #!/usr/bin/env pwsh
-# Agentic Project Chooser - Unified tool for Claude and OpenCode projects
+# Agentic Project Chooser - Unified tool for Claude, OpenCode, and Copilot projects
 # Features: Smart auto-detection, session browsing, comprehensive error handling
-# Usage: .\choose-agentic-project.ps1 [-Mode <claude|opencode|auto>] [-OpenCodeSessionMode <projects|sessions>]
+# Usage: .\choose-agentic-project.ps1 [-Mode <claude|opencode|copilot|auto>] [-OpenCodeSessionMode <projects|sessions>]
 #
 # Consolidated features:
 #   - Claude project browser (choose-claude-project.ps1)
 #   - OpenCode project and session browser (choose-opencode-session.ps1)
-#   - Smart fallback: Claude → OpenCode → Error guidance
+#   - GitHub Copilot CLI project browser
+#   - Smart fallback: Claude → OpenCode → Copilot → Error guidance
 
 param(
-    [ValidateSet('claude', 'opencode', 'auto')]
-    [string]$Mode = 'auto',
+    [ValidateSet('all', 'claude', 'opencode', 'copilot', 'auto')]
+    [string]$Mode = 'all',
     
     [ValidateSet('projects', 'sessions')]
     [string]$OpenCodeSessionMode = 'projects'
@@ -43,15 +44,18 @@ $detectedMode = $Mode
 $claudeProjectsDir = Join-Path $env:USERPROFILE ".claude\projects"
 $openCodeStorageDir = Join-Path $env:USERPROFILE ".local\share\opencode\storage"
 $openCodeProjectsDir = Join-Path $openCodeStorageDir "project"
+$copilotSessionStateDir = Join-Path $env:USERPROFILE ".copilot\session-state"
 
-# Smart detection: Try Claude first, fall back to OpenCode
+# Smart detection: Try Claude first, fall back to OpenCode, then Copilot
 if ($Mode -eq 'auto') {
     if (Test-Path $claudeProjectsDir) {
         $detectedMode = 'claude'
     } elseif (Test-Path $openCodeProjectsDir) {
         $detectedMode = 'opencode'
+    } elseif (Test-Path $copilotSessionStateDir) {
+        $detectedMode = 'copilot'
     } else {
-        # Neither found, default to claude for error message
+        # None found, default to claude for error message
         $detectedMode = 'claude'
     }
 }
@@ -62,11 +66,22 @@ if ($detectedMode -eq 'claude') {
     $CacheFile = "$env:TEMP\.claude-projects-cache.txt"
     $ToolName = "Claude Project Chooser"
     $CacheMaxAgeMinutes = 5
-} else {
+} elseif ($detectedMode -eq 'opencode') {
     $ProjectsDir = $openCodeProjectsDir
     $SessionsDir = Join-Path $openCodeStorageDir "session"
     $CacheFile = "$env:TEMP\.opencode-projects-cache.txt"
     $ToolName = "OpenCode Project Chooser"
+    $CacheMaxAgeMinutes = 5
+} elseif ($detectedMode -eq 'copilot') {
+    $ProjectsDir = $copilotSessionStateDir
+    $CacheFile = "$env:TEMP\.copilot-projects-cache.txt"
+    $ToolName = "Copilot Project Chooser"
+    $CacheMaxAgeMinutes = 5
+} else {
+    # 'all' mode - no single ProjectsDir; each getter uses its own path
+    $ProjectsDir = $null
+    $CacheFile = "$env:TEMP\.all-projects-cache.txt"
+    $ToolName = "Agentic Project Chooser"
     $CacheMaxAgeMinutes = 5
 }
 
@@ -87,17 +102,19 @@ function Show-DirectoryNotFoundError {
     
     Clear-Host
     
-    # Check if BOTH tools are missing
+    # Check if ALL tools are missing
     $claudeMissing = -not (Test-Path (Join-Path $env:USERPROFILE ".claude\projects"))
     $opencodeMissing = -not (Test-Path (Join-Path $env:USERPROFILE ".local\share\opencode\storage\project"))
+    $copilotMissing = -not (Test-Path (Join-Path $env:USERPROFILE ".copilot\session-state"))
     
-    if ($claudeMissing -and $opencodeMissing) {
-        # Both missing - show combined guidance
+    if ($claudeMissing -and $opencodeMissing -and $copilotMissing) {
+        # All missing - show combined guidance
         Write-Host "`n$($Icons.Error) ERROR: No projects found`n" -ForegroundColor Red
-        Write-Host "Neither Claude Code nor OpenCode projects directory found." -ForegroundColor Yellow
+        Write-Host "No Claude Code, OpenCode, or Copilot session directory found." -ForegroundColor Yellow
         Write-Host "Expected locations:" -ForegroundColor Yellow
         Write-Host "  • $(Join-Path $env:USERPROFILE '.claude\projects')" -ForegroundColor DarkGray
-        Write-Host "  • $(Join-Path $env:USERPROFILE '.local\share\opencode\storage\project')`n" -ForegroundColor DarkGray
+        Write-Host "  • $(Join-Path $env:USERPROFILE '.local\share\opencode\storage\project')" -ForegroundColor DarkGray
+        Write-Host "  • $(Join-Path $env:USERPROFILE '.copilot\session-state')`n" -ForegroundColor DarkGray
         
         Write-Host "To get started, choose one option:`n" -ForegroundColor Cyan
         
@@ -109,6 +126,11 @@ function Show-DirectoryNotFoundError {
         Write-Host "Option 2: Use OpenCode" -ForegroundColor White
         Write-Host "  1. Install OpenCode from https://opencode.ai" -ForegroundColor DarkGray
         Write-Host "  2. Create or open a project" -ForegroundColor DarkGray
+        Write-Host "  3. This tool will find it automatically`n" -ForegroundColor DarkGray
+
+        Write-Host "Option 3: Use GitHub Copilot CLI" -ForegroundColor White
+        Write-Host "  1. Install GitHub Copilot CLI" -ForegroundColor DarkGray
+        Write-Host "  2. Start a session with: copilot" -ForegroundColor DarkGray
         Write-Host "  3. This tool will find it automatically`n" -ForegroundColor DarkGray
     } else {
         # One tool is available but its directory is empty
@@ -132,6 +154,13 @@ function Show-DirectoryNotFoundError {
                 Write-Host "  4. Run this tool again`n" -ForegroundColor White
                 Write-Host "Directory that would be created:" -ForegroundColor Gray
                 Write-Host "    $MissingDir`n" -ForegroundColor DarkGray
+            }
+            'copilot' {
+                Write-Host "To use Copilot Project Chooser:" -ForegroundColor Cyan
+                Write-Host "  1. Install GitHub Copilot CLI (if not already installed)" -ForegroundColor White
+                Write-Host "  2. Start a session with: copilot" -ForegroundColor White
+                Write-Host "  3. This will create the .copilot/session-state directory" -ForegroundColor White
+                Write-Host "  4. Run this tool again`n" -ForegroundColor White
             }
         }
     }
@@ -172,6 +201,13 @@ function Show-NoProjectsError {
             Write-Host "  2. Create or browse to a project directory" -ForegroundColor White
             Write-Host "  3. Run this tool again`n" -ForegroundColor White
         }
+        'copilot' {
+            Write-Host "The directory exists but contains no sessions." -ForegroundColor White
+            Write-Host "`nTo add sessions:" -ForegroundColor Cyan
+            Write-Host "  1. Run: copilot" -ForegroundColor White
+            Write-Host "  2. Start a session in a project directory" -ForegroundColor White
+            Write-Host "  3. Run this tool again`n" -ForegroundColor White
+        }
     }
     
     exit 1
@@ -205,7 +241,17 @@ function Test-DirectoriesExist {
     param(
         [string]$DetectedMode
     )
-    
+
+    # 'all' mode passes if any tool directory exists
+    if ($DetectedMode -eq 'all') {
+        $anyExists = (Test-Path $claudeProjectsDir) -or (Test-Path $openCodeProjectsDir) -or (Test-Path $copilotSessionStateDir)
+        if (-not $anyExists) {
+            Show-DirectoryNotFoundError -MissingDir '' -DetectedMode $DetectedMode
+            return $false
+        }
+        return $true
+    }
+
     # Check if projects directory exists
     if (-not (Test-Path $ProjectsDir)) {
         Show-DirectoryNotFoundError -MissingDir $ProjectsDir -DetectedMode $DetectedMode
@@ -313,6 +359,7 @@ function Get-ClaudeProjectList {
                     displayName = $actualPath
                     fullPath = $actualPath
                     modified = $relativeTime
+                    sortDate = $dir.LastWriteTime
                     type = 'claude'
                 }
             }
@@ -389,6 +436,7 @@ function Get-OpenCodeProjectList {
                         fullPath = $project.worktree
                         vcs = $project.vcs
                         modified = $relativeTime
+                        sortDate = $file.LastWriteTime
                         type = 'opencode'
                     }
                 } else {
@@ -466,6 +514,186 @@ function Get-OpenCodeSessionsForProject {
     return @($sessions)
 }
 
+# ==================== Copilot Mode Functions ====================
+function Parse-WorkspaceYaml {
+    <#
+    .SYNOPSIS
+        Parse a simple YAML file (key: value pairs) into a hashtable
+    .PARAMETER FilePath
+        Path to the YAML file
+    #>
+    param([string]$FilePath)
+    $result = @{}
+    Get-Content $FilePath -ErrorAction SilentlyContinue | ForEach-Object {
+        if ($_ -match '^([^:]+):\s*(.*)$') {
+            $result[$matches[1].Trim()] = $matches[2].Trim()
+        }
+    }
+    return $result
+}
+
+function Get-CopilotProjectList {
+    <#
+    .SYNOPSIS
+        Get list of Copilot projects from the local session-state directory
+    .RETURNS
+        Array of project hashtables with: id, displayName, fullPath, repository, branch, summary, modified, type
+    .DESCRIPTION
+        Reads workspace.yaml from each session folder under ~/.copilot/session-state.
+        Deduplicates by project path (git_root or cwd), keeping the most recently updated session per project.
+    #>
+    if (Test-Path $CacheFile) {
+        $CacheAge = (Get-Date) - (Get-Item $CacheFile).LastWriteTime
+        if ($CacheAge.TotalMinutes -lt $CacheMaxAgeMinutes) {
+            try {
+                $cached = @(Get-Content $CacheFile | ConvertFrom-Json)
+                $validCache = @($cached | Where-Object { -not [string]::IsNullOrWhiteSpace($_.fullPath) })
+                if ($validCache.Count -gt 0) {
+                    return @($validCache)
+                }
+            } catch {
+                Remove-Item -Path $CacheFile -Force -ErrorAction SilentlyContinue | Out-Null
+            }
+        }
+    }
+
+    $sessionFolders = @(Get-ChildItem -Path $ProjectsDir -Directory -ErrorAction SilentlyContinue)
+    $projectMap = @{}
+
+    foreach ($folder in $sessionFolders) {
+        $yamlPath = Join-Path $folder.FullName "workspace.yaml"
+        if (-not (Test-Path $yamlPath)) { continue }
+
+        try {
+            $yaml = Parse-WorkspaceYaml $yamlPath
+
+            $projectPath = if ($yaml.git_root -and -not [string]::IsNullOrWhiteSpace($yaml.git_root)) {
+                $yaml.git_root
+            } elseif ($yaml.cwd -and -not [string]::IsNullOrWhiteSpace($yaml.cwd)) {
+                $yaml.cwd
+            } else {
+                $null
+            }
+
+            if (-not $projectPath -or -not (Test-Path $projectPath)) { continue }
+
+            $updatedAt = if ($yaml.updated_at) {
+                try { [datetime]::Parse($yaml.updated_at) } catch { $folder.LastWriteTime }
+            } else {
+                $folder.LastWriteTime
+            }
+
+            if (-not $projectMap.ContainsKey($projectPath) -or $updatedAt -gt $projectMap[$projectPath].sortDate) {
+                $displayName = if ($yaml.repository -and -not [string]::IsNullOrWhiteSpace($yaml.repository)) {
+                    $yaml.repository
+                } else {
+                    Split-Path -Leaf $projectPath
+                }
+
+                $projectMap[$projectPath] = @{
+                    id          = $yaml.id
+                    displayName = $displayName
+                    fullPath    = $projectPath
+                    repository  = $yaml.repository
+                    branch      = $yaml.branch
+                    summary     = $yaml.summary
+                    modified    = Format-RelativeTime $updatedAt
+                    sortDate    = $updatedAt
+                    type        = 'copilot'
+                }
+            }
+        } catch {
+            Write-Host "Warning: Could not read session $($folder.Name): $_" -ForegroundColor DarkYellow
+        }
+    }
+
+    $projectList = @($projectMap.Values | Sort-Object { $_.sortDate })
+
+    if ($projectList.Count -gt 0) {
+        try {
+            $projectList | ConvertTo-Json | Set-Content $CacheFile -ErrorAction SilentlyContinue
+        } catch { }
+    }
+
+    return @($projectList)
+}
+
+# ==================== All Mode Functions ====================
+function Get-AllProjectList {
+    <#
+    .SYNOPSIS
+        Get merged, deduplicated project list from all available tools
+    .RETURNS
+        Array of project hashtables sorted by sortDate descending (most recent first)
+    .DESCRIPTION
+        Calls each tool's getter with its own ProjectsDir/CacheFile, merges results,
+        deduplicates by fullPath keeping the most recently modified entry, then sorts.
+    #>
+    if (Test-Path $CacheFile) {
+        $CacheAge = (Get-Date) - (Get-Item $CacheFile).LastWriteTime
+        if ($CacheAge.TotalMinutes -lt $CacheMaxAgeMinutes) {
+            try {
+                $cached = @(Get-Content $CacheFile | ConvertFrom-Json)
+                $validCache = @($cached | Where-Object { -not [string]::IsNullOrWhiteSpace($_.fullPath) })
+                if ($validCache.Count -gt 0) {
+                    return @($validCache)
+                }
+            } catch {
+                Remove-Item -Path $CacheFile -Force -ErrorAction SilentlyContinue | Out-Null
+            }
+        }
+    }
+
+    $combined = @()
+
+    # Temporarily swap script-scope vars for each tool's getter
+    $savedProjectsDir  = $script:ProjectsDir
+    $savedCacheFile    = $script:CacheFile
+    $savedSessionsDir  = $script:SessionsDir
+
+    if (Test-Path $claudeProjectsDir) {
+        $script:ProjectsDir = $claudeProjectsDir
+        $script:CacheFile   = "$env:TEMP\.claude-projects-cache.txt"
+        $combined += @(Get-ClaudeProjectList)
+    }
+
+    if (Test-Path $openCodeProjectsDir) {
+        $script:ProjectsDir = $openCodeProjectsDir
+        $script:SessionsDir = Join-Path $openCodeStorageDir "session"
+        $script:CacheFile   = "$env:TEMP\.opencode-projects-cache.txt"
+        $combined += @(Get-OpenCodeProjectList)
+    }
+
+    if (Test-Path $copilotSessionStateDir) {
+        $script:ProjectsDir = $copilotSessionStateDir
+        $script:CacheFile   = "$env:TEMP\.copilot-projects-cache.txt"
+        $combined += @(Get-CopilotProjectList)
+    }
+
+    $script:ProjectsDir = $savedProjectsDir
+    $script:CacheFile   = $savedCacheFile
+    $script:SessionsDir = $savedSessionsDir
+
+    # Deduplicate by fullPath — keep the entry with the most recent sortDate
+    $seen = @{}
+    foreach ($p in $combined) {
+        $key = $p.fullPath.ToLower().TrimEnd('\', '/')
+        if (-not $seen.ContainsKey($key) -or $p.sortDate -gt $seen[$key].sortDate) {
+            $seen[$key] = $p
+        }
+    }
+
+    $projectList = @($seen.Values | Sort-Object { $_.sortDate } -Descending)
+
+    if ($projectList.Count -gt 0) {
+        try {
+            $projectList | ConvertTo-Json | Set-Content $CacheFile -ErrorAction SilentlyContinue
+        } catch { }
+    }
+
+    return @($projectList)
+}
+
 # ==================== Display Functions ====================
 function Show-Page {
     <#
@@ -493,7 +721,18 @@ function Show-Page {
         $color = if ($isSelected) { "Green" } else { "White" }
         $marker = if ($isSelected) { $UI.Check } else { $UI.Space }
         
-        Write-Host "  $marker $($item.displayName)" -ForegroundColor $color -NoNewline
+        Write-Host "  $marker " -NoNewline
+
+        # Tool badge in 'all' mode
+        if (-not $IsSessionMode -and $detectedMode -eq 'all') {
+            switch ($item.type) {
+                'claude'   { Write-Host '[CL] ' -ForegroundColor Cyan    -NoNewline }
+                'opencode' { Write-Host '[OC] ' -ForegroundColor Yellow  -NoNewline }
+                'copilot'  { Write-Host '[GH] ' -ForegroundColor Magenta -NoNewline }
+            }
+        }
+
+        Write-Host "$($item.displayName)" -ForegroundColor $color -NoNewline
         Write-Host " ($($item.modified))" -ForegroundColor DarkGray
         
         # Show additional info for OpenCode sessions
@@ -501,6 +740,11 @@ function Show-Page {
             if ($item.additions -gt 0 -or $item.deletions -gt 0) {
                 Write-Host "      [+$($item.additions) -$($item.deletions) in $($item.files) file(s)]" -ForegroundColor DarkGray
             }
+        }
+
+        # Show last session summary for Copilot projects
+        if (-not $IsSessionMode -and $item.type -eq 'copilot' -and $item.summary) {
+            Write-Host "      $($item.summary)" -ForegroundColor DarkGray
         }
     }
     
@@ -603,6 +847,10 @@ function Refresh-ItemList {
     } else {
         if ($detectedMode -eq 'claude') {
             return Get-ClaudeProjectList
+        } elseif ($detectedMode -eq 'copilot') {
+            return Get-CopilotProjectList
+        } elseif ($detectedMode -eq 'all') {
+            return Get-AllProjectList
         } else {
             return Get-OpenCodeProjectList
         }
@@ -702,6 +950,10 @@ if (-not (Test-DirectoriesExist -DetectedMode $detectedMode)) {
 # Load initial projects based on detected mode
 if ($detectedMode -eq 'claude') {
     $allProjects = Get-ClaudeProjectList
+} elseif ($detectedMode -eq 'copilot') {
+    $allProjects = Get-CopilotProjectList
+} elseif ($detectedMode -eq 'all') {
+    $allProjects = Get-AllProjectList
 } else {
     $allProjects = Get-OpenCodeProjectList
 }
@@ -760,14 +1012,23 @@ while ($true) {
         
          Write-Host "`nLaunching: $projectPath`n" -ForegroundColor Green
          $pwshExe = (Get-Command pwsh).Source
-         
-         # Launch project - for Claude, open claude; for OpenCode, open opencode
-         if ($detectedMode -eq 'claude') {
-             Start-Process -FilePath $pwshExe -ArgumentList "-NoExit", "-Command", "Set-Location '$projectPath'; claude"
-         } else {
-             # For OpenCode, launch opencode with the project directory
-             Start-Process -FilePath $pwshExe -ArgumentList "-NoExit", "-Command", "Set-Location '$projectPath'; opencode"
+
+         # Determine which tool to launch
+         $launchTool = switch ($detectedMode) {
+             'claude'   { 'claude' }
+             'copilot'  { 'copilot' }
+             'opencode' { 'opencode' }
+             'all'      {
+                 switch ($selectedProject.type) {
+                     'claude'  { 'claude' }
+                     'copilot' { 'copilot' }
+                     default   { 'opencode' }
+                 }
+             }
+             default    { 'opencode' }
          }
+
+         Start-Process -FilePath $pwshExe -ArgumentList "-NoExit", "-Command", "Set-Location '$projectPath'; $launchTool"
          Clear-Host
     }
 }
