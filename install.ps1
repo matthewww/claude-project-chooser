@@ -48,6 +48,19 @@ foreach ($file in $filesToCopy) {
     }
 }
 
+# Copy providers/ directory
+$providersSource = Join-Path $scriptDir "providers"
+$providersDest   = Join-Path $claudeBinDir "providers"
+if (Test-Path $providersSource) {
+    Write-Host "Copying providers/..." -ForegroundColor Yellow
+    Copy-Item -Path $providersSource -Destination $providersDest -Recurse -Force
+    $count = (Get-ChildItem $providersDest -Filter "*.ps1").Count
+    Write-Host "  ✓ Installed $count provider(s) to $providersDest" -ForegroundColor Green
+} else {
+    Write-Host "  ✗ Error: providers/ directory not found in source directory" -ForegroundColor Red
+    exit 1
+}
+
 # Patch jmp.bat: replace %~dp0 with the absolute install path so it works
 # regardless of which directory jmp is called from (PATH-based invocation
 # does not guarantee %~dp0 resolves to the batch file's own directory).

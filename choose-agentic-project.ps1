@@ -1,215 +1,159 @@
 #!/usr/bin/env pwsh
-# Agentic Project Chooser - Unified tool for Claude, OpenCode, and Copilot projects
-# Features: Smart auto-detection, session browsing, comprehensive error handling
-# Usage: .\choose-agentic-project.ps1 [-Mode <claude|opencode|copilot|auto>] [-OpenCodeSessionMode <projects|sessions>]
+# Agentic Project Chooser - Unified tool for managing agentic coding tool projects
+# Features: Smart auto-detection, session browsing, extensible provider architecture
+# Usage: .\choose-agentic-project.ps1 [-Mode <all|auto|<providerId>>] [-OpenCodeSessionMode <projects|sessions>]
 #
-# Consolidated features:
-#   - Claude project browser (choose-claude-project.ps1)
-#   - OpenCode project and session browser (choose-opencode-session.ps1)
-#   - GitHub Copilot CLI project browser
-#   - Smart fallback: Claude → OpenCode → Copilot → Error guidance
+# Architecture: Provider plugins in ./providers/*.ps1 self-register via Register-Provider.
+# Add support for a new tool by dropping a .ps1 file in the providers/ directory.
 
 param(
-    [ValidateSet('all', 'claude', 'opencode', 'copilot', 'auto')]
     [string]$Mode = 'all',
-    
+
     [ValidateSet('projects', 'sessions')]
     [string]$OpenCodeSessionMode = 'projects'
 )
 
 # ==================== Configuration ====================
-$PageSize = 10
+$PageSize           = 10
+$CacheMaxAgeMinutes = 5
 
 # UI Symbols - using ASCII-compatible characters for terminal compatibility
 $UI = @{
-    Arrow = '->'           # Navigation arrows (compatible with all terminals)
-    Pipe = '|'             # Vertical pipe for separation
-    Check = '>'            # Selection indicator
-    Space = ' '            # Selection placeholder
-    Scroll = '...'         # Scroll indicator
-    KeyUp = 'Up/Down'      # Up/down arrow keys
+    Arrow    = '->'        # Navigation arrows (compatible with all terminals)
+    Pipe     = '|'         # Vertical pipe for separation
+    Check    = '>'         # Selection indicator
+    Space    = ' '         # Selection placeholder
+    Scroll   = '...'       # Scroll indicator
+    KeyUp    = 'Up/Down'   # Up/down arrow keys
     KeyEnter = 'Enter'     # Enter key
-    KeyEsc = 'Esc'         # Escape key
+    KeyEsc   = 'Esc'       # Escape key
 }
 
 # Error/status icons that work across terminals
 $Icons = @{
-    Error = '[!]'          # Error indicator
+    Error   = '[!]'        # Error indicator
     Warning = '[!]'        # Warning indicator
-    Info = '[*]'           # Information indicator
+    Info    = '[*]'        # Information indicator
 }
 
-# Detect available modes if auto mode is selected
-$detectedMode = $Mode
-$claudeProjectsDir = Join-Path $env:USERPROFILE ".claude\projects"
-$openCodeStorageDir = Join-Path $env:USERPROFILE ".local\share\opencode\storage"
-$openCodeProjectsDir = Join-Path $openCodeStorageDir "project"
-$copilotSessionStateDir = Join-Path $env:USERPROFILE ".copilot\session-state"
+# ==================== Provider Registry ====================
+$script:Providers = [System.Collections.Generic.List[object]]::new()
 
-# Smart detection: Try Claude first, fall back to OpenCode, then Copilot
-if ($Mode -eq 'auto') {
-    if (Test-Path $claudeProjectsDir) {
-        $detectedMode = 'claude'
-    } elseif (Test-Path $openCodeProjectsDir) {
-        $detectedMode = 'opencode'
-    } elseif (Test-Path $copilotSessionStateDir) {
-        $detectedMode = 'copilot'
-    } else {
-        # None found, default to claude for error message
-        $detectedMode = 'claude'
+function Register-Provider {
+    param([hashtable]$Provider)
+    $script:Providers.Add($Provider)
+}
+
+# Load all provider files from the providers/ subdirectory
+$_providersDir = Join-Path $PSScriptRoot "providers"
+if (Test-Path $_providersDir) {
+    Get-ChildItem -Path $_providersDir -Filter "*.ps1" -File | Sort-Object Name | ForEach-Object {
+        . $_.FullName
     }
+} else {
+    Write-Error "Providers directory not found: $_providersDir"
+    exit 1
+}
+Remove-Variable _providersDir
+
+# ==================== Mode Detection ====================
+$detectedMode = $Mode
+if ($Mode -eq 'auto') {
+    $firstAvailable = $script:Providers | Where-Object { Test-Path $_.DataDir } | Select-Object -First 1
+    $detectedMode   = if ($firstAvailable) { $firstAvailable.Id } else { ($script:Providers | Select-Object -First 1).Id }
 }
 
-# Mode-specific paths and configuration
-if ($detectedMode -eq 'claude') {
-    $ProjectsDir = $claudeProjectsDir
-    $CacheFile = "$env:TEMP\.claude-projects-cache.txt"
-    $ToolName = "Claude Project Chooser"
-    $CacheMaxAgeMinutes = 5
-} elseif ($detectedMode -eq 'opencode') {
-    $ProjectsDir = $openCodeProjectsDir
-    $SessionsDir = Join-Path $openCodeStorageDir "session"
-    $CacheFile = "$env:TEMP\.opencode-projects-cache.txt"
-    $ToolName = "OpenCode Project Chooser"
-    $CacheMaxAgeMinutes = 5
-} elseif ($detectedMode -eq 'copilot') {
-    $ProjectsDir = $copilotSessionStateDir
-    $CacheFile = "$env:TEMP\.copilot-projects-cache.txt"
-    $ToolName = "Copilot Project Chooser"
-    $CacheMaxAgeMinutes = 5
-} else {
-    # 'all' mode - no single ProjectsDir; each getter uses its own path
-    $ProjectsDir = $null
+# Validate mode (accepts 'all', 'auto', or any registered provider Id)
+$_validModes = @('all', 'auto') + @($script:Providers | ForEach-Object { $_.Id })
+if ($Mode -notin $_validModes) {
+    Write-Error "Invalid mode: '$Mode'. Valid modes: $($_validModes -join ', ')"
+    exit 1
+}
+Remove-Variable _validModes
+
+# ==================== Mode Configuration ====================
+$ProjectsDir    = $null
+$CacheFile      = $null
+$ToolName       = $null
+$activeProvider = $null
+
+if ($detectedMode -eq 'all') {
     $CacheFile = "$env:TEMP\.all-projects-cache.txt"
-    $ToolName = "Agentic Project Chooser"
-    $CacheMaxAgeMinutes = 5
+    $ToolName  = "Agentic Project Chooser"
+} else {
+    $activeProvider = $script:Providers | Where-Object { $_.Id -eq $detectedMode } | Select-Object -First 1
+    $ProjectsDir    = $activeProvider.DataDir
+    $CacheFile      = $activeProvider.CacheFile
+    $ToolName       = "$($activeProvider.Name) Project Chooser"
 }
 
 # ==================== Error Handling Functions ====================
 function Show-DirectoryNotFoundError {
-    <#
-    .SYNOPSIS
-        Display error when projects directory is not found
-    .PARAMETER MissingDir
-        The directory path that was not found
-    .PARAMETER DetectedMode
-        The mode that was detected (claude or opencode)
-    #>
     param(
         [string]$MissingDir,
         [string]$DetectedMode
     )
-    
-    Clear-Host
-    
-    # Check if ALL tools are missing
-    $claudeMissing = -not (Test-Path (Join-Path $env:USERPROFILE ".claude\projects"))
-    $opencodeMissing = -not (Test-Path (Join-Path $env:USERPROFILE ".local\share\opencode\storage\project"))
-    $copilotMissing = -not (Test-Path (Join-Path $env:USERPROFILE ".copilot\session-state"))
-    
-    if ($claudeMissing -and $opencodeMissing -and $copilotMissing) {
-        # All missing - show combined guidance
-        Write-Host "`n$($Icons.Error) ERROR: No projects found`n" -ForegroundColor Red
-        Write-Host "No Claude Code, OpenCode, or Copilot session directory found." -ForegroundColor Yellow
-        Write-Host "Expected locations:" -ForegroundColor Yellow
-        Write-Host "  • $(Join-Path $env:USERPROFILE '.claude\projects')" -ForegroundColor DarkGray
-        Write-Host "  • $(Join-Path $env:USERPROFILE '.local\share\opencode\storage\project')" -ForegroundColor DarkGray
-        Write-Host "  • $(Join-Path $env:USERPROFILE '.copilot\session-state')`n" -ForegroundColor DarkGray
-        
-        Write-Host "To get started, choose one option:`n" -ForegroundColor Cyan
-        
-        Write-Host "Option 1: Use Claude Code" -ForegroundColor White
-        Write-Host "  1. Install Claude Code from https://claude.ai" -ForegroundColor DarkGray
-        Write-Host "  2. Create or open a project" -ForegroundColor DarkGray
-        Write-Host "  3. This tool will find it automatically`n" -ForegroundColor DarkGray
-        
-        Write-Host "Option 2: Use OpenCode" -ForegroundColor White
-        Write-Host "  1. Install OpenCode from https://opencode.ai" -ForegroundColor DarkGray
-        Write-Host "  2. Create or open a project" -ForegroundColor DarkGray
-        Write-Host "  3. This tool will find it automatically`n" -ForegroundColor DarkGray
 
-        Write-Host "Option 3: Use GitHub Copilot CLI" -ForegroundColor White
-        Write-Host "  1. Install GitHub Copilot CLI" -ForegroundColor DarkGray
-        Write-Host "  2. Start a session with: copilot" -ForegroundColor DarkGray
-        Write-Host "  3. This tool will find it automatically`n" -ForegroundColor DarkGray
+    Clear-Host
+
+    $missingAll = @($script:Providers | Where-Object { -not (Test-Path $_.DataDir) })
+    if ($missingAll.Count -eq $script:Providers.Count) {
+        Write-Host "`n$($Icons.Error) ERROR: No agentic tool data found`n" -ForegroundColor Red
+        Write-Host "No project directories found for any configured provider." -ForegroundColor Yellow
+        Write-Host "Expected locations:" -ForegroundColor Yellow
+        foreach ($p in $script:Providers) {
+            Write-Host "  • $($p.DataDir)" -ForegroundColor DarkGray
+        }
+        Write-Host "`nTo get started:`n" -ForegroundColor Cyan
+        $i = 1
+        foreach ($p in $script:Providers) {
+            Write-Host "Option $i`: Use $($p.Name)" -ForegroundColor White
+            if ($p.InstallUrl) {
+                Write-Host "  Install from: $($p.InstallUrl)" -ForegroundColor DarkGray
+            }
+            Write-Host "  Launch with:  $($p.LaunchCmd)`n" -ForegroundColor DarkGray
+            $i++
+        }
     } else {
-        # One tool is available but its directory is empty
         Write-Host "`n$($Icons.Error) ERROR: $DetectedMode projects directory not found`n" -ForegroundColor Red
         Write-Host "Expected location: $MissingDir`n" -ForegroundColor Yellow
-        
-        switch ($DetectedMode.ToLower()) {
-            'claude' {
-                Write-Host "To use Claude Project Chooser:" -ForegroundColor Cyan
-                Write-Host "  1. Install Claude Code (if not already installed)" -ForegroundColor White
-                Write-Host "  2. Create or open a project in Claude Code" -ForegroundColor White
-                Write-Host "  3. This will create the .claude/projects directory" -ForegroundColor White
-                Write-Host "  4. Run this tool again`n" -ForegroundColor White
-                Write-Host "Need help? Visit: https://claude.ai" -ForegroundColor DarkGray
+        $provider = $script:Providers | Where-Object { $_.Id -eq $DetectedMode } | Select-Object -First 1
+        if ($provider) {
+            Write-Host "To use $($provider.Name) Project Chooser:" -ForegroundColor Cyan
+            if ($provider.InstallUrl) {
+                Write-Host "  1. Install $($provider.Name): $($provider.InstallUrl)" -ForegroundColor White
+            } else {
+                Write-Host "  1. Install $($provider.Name)" -ForegroundColor White
             }
-            'opencode' {
-                Write-Host "To use OpenCode Project Chooser:" -ForegroundColor Cyan
-                Write-Host "  1. Install OpenCode (https://opencode.ai)" -ForegroundColor White
-                Write-Host "  2. Create or open a project in OpenCode" -ForegroundColor White
-                Write-Host "  3. This will create the .local/share/opencode directory" -ForegroundColor White
-                Write-Host "  4. Run this tool again`n" -ForegroundColor White
-                Write-Host "Directory that would be created:" -ForegroundColor Gray
-                Write-Host "    $MissingDir`n" -ForegroundColor DarkGray
-            }
-            'copilot' {
-                Write-Host "To use Copilot Project Chooser:" -ForegroundColor Cyan
-                Write-Host "  1. Install GitHub Copilot CLI (if not already installed)" -ForegroundColor White
-                Write-Host "  2. Start a session with: copilot" -ForegroundColor White
-                Write-Host "  3. This will create the .copilot/session-state directory" -ForegroundColor White
-                Write-Host "  4. Run this tool again`n" -ForegroundColor White
-            }
+            Write-Host "  2. Launch it once to create the data directory: $($provider.LaunchCmd)" -ForegroundColor White
+            Write-Host "  3. Run this tool again`n" -ForegroundColor White
         }
     }
-    
+
     exit 1
 }
 
 function Show-NoProjectsError {
-    <#
-    .SYNOPSIS
-        Display error when projects directory exists but is empty
-    .PARAMETER Mode
-        The mode being used (claude or opencode)
-    .PARAMETER ProjectsDir
-        Path to the projects directory that is empty
-    #>
     param(
         [string]$Mode,
         [string]$ProjectsDir
     )
-    
+
     Clear-Host
     Write-Host "`n$($Icons.Warning) No projects found`n" -ForegroundColor Yellow
     Write-Host "Looking in: $ProjectsDir`n" -ForegroundColor Gray
-    
-    switch ($Mode.ToLower()) {
-        'claude' {
-            Write-Host "The directory exists but contains no projects." -ForegroundColor White
-            Write-Host "`nTo add projects:" -ForegroundColor Cyan
-            Write-Host "  1. Open Claude Code" -ForegroundColor White
-            Write-Host "  2. Create or open a project" -ForegroundColor White
-            Write-Host "  3. Run this tool again`n" -ForegroundColor White
-        }
-        'opencode' {
-            Write-Host "The directory exists but contains no projects." -ForegroundColor White
-            Write-Host "`nTo add projects:" -ForegroundColor Cyan
-            Write-Host "  1. Open OpenCode" -ForegroundColor White
-            Write-Host "  2. Create or browse to a project directory" -ForegroundColor White
-            Write-Host "  3. Run this tool again`n" -ForegroundColor White
-        }
-        'copilot' {
-            Write-Host "The directory exists but contains no sessions." -ForegroundColor White
-            Write-Host "`nTo add sessions:" -ForegroundColor Cyan
-            Write-Host "  1. Run: copilot" -ForegroundColor White
-            Write-Host "  2. Start a session in a project directory" -ForegroundColor White
-            Write-Host "  3. Run this tool again`n" -ForegroundColor White
-        }
-    }
-    
+
+    $provider = $script:Providers | Where-Object { $_.Id -eq $Mode } | Select-Object -First 1
+    $toolName = if ($provider) { $provider.Name } else { $Mode }
+    $launchCmd = if ($provider) { $provider.LaunchCmd } else { $Mode }
+
+    Write-Host "The directory exists but contains no projects." -ForegroundColor White
+    Write-Host "`nTo add projects:" -ForegroundColor Cyan
+    Write-Host "  1. Open $toolName" -ForegroundColor White
+    Write-Host "  2. Create or open a project" -ForegroundColor White
+    Write-Host "  3. Run: $launchCmd" -ForegroundColor White
+    Write-Host "  4. Run this tool again`n" -ForegroundColor White
+
     exit 1
 }
 
@@ -230,21 +174,10 @@ function Show-InvalidPathError {
 }
 
 function Test-DirectoriesExist {
-    <#
-    .SYNOPSIS
-        Validate that projects directory exists and contains at least one project
-    .PARAMETER DetectedMode
-        The detected mode (used for error messages)
-    .RETURNS
-        $true if valid, $false otherwise (function exits with code 1 on error)
-    #>
-    param(
-        [string]$DetectedMode
-    )
+    param([string]$DetectedMode)
 
-    # 'all' mode passes if any tool directory exists
     if ($DetectedMode -eq 'all') {
-        $anyExists = (Test-Path $claudeProjectsDir) -or (Test-Path $openCodeProjectsDir) -or (Test-Path $copilotSessionStateDir)
+        $anyExists = @($script:Providers | Where-Object { Test-Path $_.DataDir }).Count -gt 0
         if (-not $anyExists) {
             Show-DirectoryNotFoundError -MissingDir '' -DetectedMode $DetectedMode
             return $false
@@ -252,19 +185,17 @@ function Test-DirectoriesExist {
         return $true
     }
 
-    # Check if projects directory exists
     if (-not (Test-Path $ProjectsDir)) {
         Show-DirectoryNotFoundError -MissingDir $ProjectsDir -DetectedMode $DetectedMode
         return $false
     }
-    
-    # Check if there are any projects
+
     $projectCount = (Get-ChildItem -Path $ProjectsDir -ErrorAction SilentlyContinue | Measure-Object).Count
     if ($projectCount -eq 0) {
         Show-NoProjectsError -Mode $DetectedMode -ProjectsDir $ProjectsDir
         return $false
     }
-    
+
     return $true
 }
 
@@ -288,346 +219,13 @@ function Format-RelativeTime {
     else { return $Date.ToString("MMM d, h:mm tt") }
 }
 
-# ==================== Claude Mode Functions ====================
-function Get-ActualProjectPath {
-    <#
-    .SYNOPSIS
-        Extract the actual project working directory from Claude session metadata
-    .PARAMETER SessionFolder
-        Path to the Claude session folder
-    .RETURNS
-        String containing the project's working directory path
-    .DESCRIPTION
-        Claude stores project metadata in .jsonl files within session folders.
-        This function reads the most recent jsonl file and extracts the 'cwd' field.
-    #>
-    param([string]$SessionFolder)
-    $jsonlFile = Get-ChildItem -Path $SessionFolder -Filter "*.jsonl" -File | Select-Object -First 1
-    if ($jsonlFile) {
-        Get-Content $jsonlFile.FullName | ForEach-Object {
-            try {
-                $obj = $_ | ConvertFrom-Json
-                if ($obj.cwd) { return $obj.cwd }
-            } catch { }
-        } | Select-Object -First 1
-    }
-    return $null
-}
-
-function Get-ClaudeProjectList {
-    <#
-    .SYNOPSIS
-        Get list of Claude projects from the local projects directory
-    .RETURNS
-        Array of project hashtables with: sessionName, displayName, fullPath, modified, type
-    .DESCRIPTION
-        Reads from ~/.claude/projects directory and caches results for 5 minutes.
-        Each Claude project has a session folder containing a .jsonl metadata file.
-    #>
-    if (Test-Path $CacheFile) {
-        $CacheAge = (Get-Date) - (Get-Item $CacheFile).LastWriteTime
-        if ($CacheAge.TotalMinutes -lt $CacheMaxAgeMinutes) {
-            try {
-                $cached = @(Get-Content $CacheFile | ConvertFrom-Json)
-                $validCache = @($cached | Where-Object { -not [string]::IsNullOrWhiteSpace($_.fullPath) })
-                if ($validCache.Count -gt 0) {
-                    return @($validCache)
-                }
-            } catch { 
-                # Cache is corrupted, ignore and reload
-                Remove-Item -Path $CacheFile -Force -ErrorAction SilentlyContinue | Out-Null
-            }
-        }
-    }
-    
-    $projectList = @()
-    
-    try {
-        $projectDirs = @(Get-ChildItem -Path $ProjectsDir -Directory -ErrorAction Stop | Sort-Object -Property LastWriteTime)
-    } catch {
-        Write-Host "Error accessing projects directory: $_" -ForegroundColor Yellow
-        return @()
-    }
-    
-    foreach ($dir in $projectDirs) {
-        try {
-            $actualPath = Get-ActualProjectPath $dir.FullName
-            if ($actualPath -and -not [string]::IsNullOrWhiteSpace($actualPath)) {
-                $relativeTime = Format-RelativeTime $dir.LastWriteTime
-                $projectList += @{ 
-                    sessionName = $dir.Name
-                    displayName = $actualPath
-                    fullPath = $actualPath
-                    modified = $relativeTime
-                    sortDate = $dir.LastWriteTime
-                    type = 'claude'
-                }
-            }
-        } catch {
-            Write-Host "Warning: Could not read project folder $($dir.Name): $_" -ForegroundColor DarkYellow
-        }
-    }
-    
-    if ($projectList.Count -gt 0) { 
-        try {
-            $projectList | ConvertTo-Json | Set-Content $CacheFile -ErrorAction SilentlyContinue
-        } catch { 
-            # Cache write failed, but we still have the data
-        }
-    }
-    
-    return @($projectList)
-}
-
-# ==================== OpenCode Mode Functions ====================
-function Get-OpenCodeProjectList {
-    <#
-    .SYNOPSIS
-        Get list of OpenCode projects from the local projects directory
-    .RETURNS
-        Array of project hashtables with: id, displayName, worktree, fullPath, vcs, modified, type
-    .DESCRIPTION
-        Reads from ~/.local/share/opencode/storage/project directory where OpenCode stores .json files.
-        Each project file contains metadata including the working tree directory path.
-        Verifies paths still exist before including in results.
-    #>
-    if (Test-Path $CacheFile) {
-        $CacheAge = (Get-Date) - (Get-Item $CacheFile).LastWriteTime
-        if ($CacheAge.TotalMinutes -lt $CacheMaxAgeMinutes) {
-            try {
-                $cached = @(Get-Content $CacheFile | ConvertFrom-Json)
-                $validCache = @($cached | Where-Object { -not [string]::IsNullOrWhiteSpace($_.worktree) })
-                if ($validCache.Count -gt 0) {
-                    return @($validCache)
-                }
-            } catch { 
-                # Cache is corrupted, ignore and reload
-                Remove-Item -Path $CacheFile -Force -ErrorAction SilentlyContinue | Out-Null
-            }
-        }
-    }
-
-    $projectList = @()
-    
-    if (-not (Test-Path $ProjectsDir)) {
-        Write-Host "Projects directory does not exist: $ProjectsDir" -ForegroundColor Yellow
-        return @()
-    }
-    
-    try {
-        $projectFiles = @(Get-ChildItem -Path $ProjectsDir -Filter "*.json" -File -ErrorAction Stop | Sort-Object -Property LastWriteTime)
-    } catch {
-        Write-Host "Error accessing projects directory: $_" -ForegroundColor Yellow
-        return @()
-    }
-    
-    foreach ($file in $projectFiles) {
-        try {
-            $project = Get-Content $file.FullName | ConvertFrom-Json
-            if ($project.id -and $project.worktree) {
-                # Verify the path still exists
-                if (Test-Path $project.worktree) {
-                    $relativeTime = Format-RelativeTime $file.LastWriteTime
-                    $displayName = Split-Path -Leaf $project.worktree
-                    $projectList += @{
-                        id = $project.id
-                        displayName = $displayName
-                        worktree = $project.worktree
-                        fullPath = $project.worktree
-                        vcs = $project.vcs
-                        modified = $relativeTime
-                        sortDate = $file.LastWriteTime
-                        type = 'opencode'
-                    }
-                } else {
-                    Write-Host "Warning: Project path no longer exists: $($project.worktree)" -ForegroundColor DarkYellow
-                }
-            }
-        } catch {
-            Write-Host "Warning: Error reading project file $($file.Name): $_" -ForegroundColor DarkYellow
-        }
-    }
-
-    if ($projectList.Count -gt 0) { 
-        try {
-            $projectList | ConvertTo-Json | Set-Content $CacheFile -ErrorAction SilentlyContinue
-        } catch { 
-            # Cache write failed, but we still have the data
-        }
-    }
-    
-    return @($projectList)
-}
-
-function Get-OpenCodeSessionsForProject {
-    <#
-    .SYNOPSIS
-        Get list of OpenCode sessions for a specific project
-    .PARAMETER ProjectId
-        The project ID to get sessions for
-    .RETURNS
-        Array of session hashtables with: id, slug, displayName, fullPath, modified, additions, deletions, files, type
-    .DESCRIPTION
-        Each project has a session directory under ~/.local/share/opencode/storage/session/<projectid>/.
-        Sessions contain metadata about code changes and workspace state.
-    #>
-    param([string]$ProjectId)
-    
-    $projectSessionDir = Join-Path $SessionsDir $ProjectId
-    $sessions = @()
-
-    if (-not (Test-Path $projectSessionDir)) {
-        Write-Host "No sessions directory for project $ProjectId" -ForegroundColor DarkGray
-        return @()
-    }
-    
-    try {
-        $sessionFiles = @(Get-ChildItem -Path $projectSessionDir -Filter "*.json" -File -ErrorAction Stop | Sort-Object -Property LastWriteTime -Descending)
-    } catch {
-        Write-Host "Warning: Error accessing sessions directory: $_" -ForegroundColor DarkYellow
-        return @()
-    }
-    
-    foreach ($file in $sessionFiles) {
-        try {
-            $session = Get-Content $file.FullName | ConvertFrom-Json
-            if ($session.id) {
-                $relativeTime = Format-RelativeTime $file.LastWriteTime
-                $title = if ($session.title) { $session.title } else { $session.slug }
-                $sessions += @{
-                    id = $session.id
-                    slug = $session.slug
-                    displayName = $title
-                    fullPath = $session.directory
-                    modified = $relativeTime
-                    additions = $session.summary.additions
-                    deletions = $session.summary.deletions
-                    files = $session.summary.files
-                    type = 'opencode-session'
-                }
-            }
-        } catch {
-            Write-Host "Warning: Error reading session file $($file.Name): $_" -ForegroundColor DarkYellow
-        }
-    }
-
-    return @($sessions)
-}
-
-# ==================== Copilot Mode Functions ====================
-function Parse-WorkspaceYaml {
-    <#
-    .SYNOPSIS
-        Parse a simple YAML file (key: value pairs) into a hashtable
-    .PARAMETER FilePath
-        Path to the YAML file
-    #>
-    param([string]$FilePath)
-    $result = @{}
-    Get-Content $FilePath -ErrorAction SilentlyContinue | ForEach-Object {
-        if ($_ -match '^([^:]+):\s*(.*)$') {
-            $result[$matches[1].Trim()] = $matches[2].Trim()
-        }
-    }
-    return $result
-}
-
-function Get-CopilotProjectList {
-    <#
-    .SYNOPSIS
-        Get list of Copilot projects from the local session-state directory
-    .RETURNS
-        Array of project hashtables with: id, displayName, fullPath, repository, branch, summary, modified, type
-    .DESCRIPTION
-        Reads workspace.yaml from each session folder under ~/.copilot/session-state.
-        Deduplicates by project path (git_root or cwd), keeping the most recently updated session per project.
-    #>
-    if (Test-Path $CacheFile) {
-        $CacheAge = (Get-Date) - (Get-Item $CacheFile).LastWriteTime
-        if ($CacheAge.TotalMinutes -lt $CacheMaxAgeMinutes) {
-            try {
-                $cached = @(Get-Content $CacheFile | ConvertFrom-Json)
-                $validCache = @($cached | Where-Object { -not [string]::IsNullOrWhiteSpace($_.fullPath) })
-                if ($validCache.Count -gt 0) {
-                    return @($validCache)
-                }
-            } catch {
-                Remove-Item -Path $CacheFile -Force -ErrorAction SilentlyContinue | Out-Null
-            }
-        }
-    }
-
-    $sessionFolders = @(Get-ChildItem -Path $ProjectsDir -Directory -ErrorAction SilentlyContinue)
-    $projectMap = @{}
-
-    foreach ($folder in $sessionFolders) {
-        $yamlPath = Join-Path $folder.FullName "workspace.yaml"
-        if (-not (Test-Path $yamlPath)) { continue }
-
-        try {
-            $yaml = Parse-WorkspaceYaml $yamlPath
-
-            $projectPath = if ($yaml.git_root -and -not [string]::IsNullOrWhiteSpace($yaml.git_root)) {
-                $yaml.git_root
-            } elseif ($yaml.cwd -and -not [string]::IsNullOrWhiteSpace($yaml.cwd)) {
-                $yaml.cwd
-            } else {
-                $null
-            }
-
-            if (-not $projectPath -or -not (Test-Path $projectPath)) { continue }
-
-            $updatedAt = if ($yaml.updated_at) {
-                try { [datetime]::Parse($yaml.updated_at) } catch { $folder.LastWriteTime }
-            } else {
-                $folder.LastWriteTime
-            }
-
-            if (-not $projectMap.ContainsKey($projectPath) -or $updatedAt -gt $projectMap[$projectPath].sortDate) {
-                $displayName = if ($yaml.repository -and -not [string]::IsNullOrWhiteSpace($yaml.repository)) {
-                    $yaml.repository
-                } else {
-                    Split-Path -Leaf $projectPath
-                }
-
-                $projectMap[$projectPath] = @{
-                    id          = $yaml.id
-                    displayName = $displayName
-                    fullPath    = $projectPath
-                    repository  = $yaml.repository
-                    branch      = $yaml.branch
-                    summary     = $yaml.summary
-                    modified    = Format-RelativeTime $updatedAt
-                    sortDate    = $updatedAt
-                    type        = 'copilot'
-                }
-            }
-        } catch {
-            Write-Host "Warning: Could not read session $($folder.Name): $_" -ForegroundColor DarkYellow
-        }
-    }
-
-    $projectList = @($projectMap.Values | Sort-Object { $_.sortDate })
-
-    if ($projectList.Count -gt 0) {
-        try {
-            $projectList | ConvertTo-Json | Set-Content $CacheFile -ErrorAction SilentlyContinue
-        } catch { }
-    }
-
-    return @($projectList)
-}
-
 # ==================== All Mode Functions ====================
 function Get-AllProjectList {
     <#
     .SYNOPSIS
-        Get merged, deduplicated project list from all available tools
+        Get merged, deduplicated project list from all registered providers
     .RETURNS
         Array of project hashtables sorted by sortDate descending (most recent first)
-    .DESCRIPTION
-        Calls each tool's getter with its own ProjectsDir/CacheFile, merges results,
-        deduplicates by fullPath keeping the most recently modified entry, then sorts.
     #>
     if (Test-Path $CacheFile) {
         $CacheAge = (Get-Date) - (Get-Item $CacheFile).LastWriteTime
@@ -645,34 +243,12 @@ function Get-AllProjectList {
     }
 
     $combined = @()
-
-    # Temporarily swap script-scope vars for each tool's getter
-    $savedProjectsDir  = $script:ProjectsDir
-    $savedCacheFile    = $script:CacheFile
-    $savedSessionsDir  = $script:SessionsDir
-
-    if (Test-Path $claudeProjectsDir) {
-        $script:ProjectsDir = $claudeProjectsDir
-        $script:CacheFile   = "$env:TEMP\.claude-projects-cache.txt"
-        $combined += @(Get-ClaudeProjectList)
+    foreach ($provider in $script:Providers) {
+        if (Test-Path $provider.DataDir) {
+            $projects = @(& $provider.GetProjects $provider.DataDir $provider.CacheFile $CacheMaxAgeMinutes)
+            $combined += $projects
+        }
     }
-
-    if (Test-Path $openCodeProjectsDir) {
-        $script:ProjectsDir = $openCodeProjectsDir
-        $script:SessionsDir = Join-Path $openCodeStorageDir "session"
-        $script:CacheFile   = "$env:TEMP\.opencode-projects-cache.txt"
-        $combined += @(Get-OpenCodeProjectList)
-    }
-
-    if (Test-Path $copilotSessionStateDir) {
-        $script:ProjectsDir = $copilotSessionStateDir
-        $script:CacheFile   = "$env:TEMP\.copilot-projects-cache.txt"
-        $combined += @(Get-CopilotProjectList)
-    }
-
-    $script:ProjectsDir = $savedProjectsDir
-    $script:CacheFile   = $savedCacheFile
-    $script:SessionsDir = $savedSessionsDir
 
     # Deduplicate by fullPath — keep the entry with the most recent sortDate
     $seen = @{}
@@ -693,6 +269,7 @@ function Get-AllProjectList {
 
     return @($projectList)
 }
+
 
 # ==================== Display Functions ====================
 function Show-Page {
@@ -723,13 +300,10 @@ function Show-Page {
         
         Write-Host "  $marker " -NoNewline
 
-        # Tool badge in 'all' mode
+        # Tool badge in 'all' mode — resolved dynamically from the provider registry
         if (-not $IsSessionMode -and $detectedMode -eq 'all') {
-            switch ($item.type) {
-                'claude'   { Write-Host '[CL] ' -ForegroundColor Cyan    -NoNewline }
-                'opencode' { Write-Host '[OC] ' -ForegroundColor Yellow  -NoNewline }
-                'copilot'  { Write-Host '[GH] ' -ForegroundColor Magenta -NoNewline }
-            }
+            $p = $script:Providers | Where-Object { $_.Id -eq $item.type } | Select-Object -First 1
+            if ($p) { Write-Host "[$($p.Badge)] " -ForegroundColor $p.BadgeColor -NoNewline }
         }
 
         Write-Host "$($item.displayName)" -ForegroundColor $color -NoNewline
@@ -827,34 +401,26 @@ function Handle-ControlKey {
 }
 
 function Refresh-ItemList {
-    <#
-    .SYNOPSIS
-        Refresh the list of items based on current mode
-    .PARAMETER IsSessionMode
-        Whether in session mode
-    .PARAMETER ProjectId
-        Project ID (required for session mode)
-    #>
-    param([bool]$IsSessionMode, [string]$ProjectId = $null)
-    
+    param([bool]$IsSessionMode, [string]$ProjectId = $null, [string]$ProjectType = $null)
+
     Clear-Host
     Write-Host "Refreshing..." -ForegroundColor Cyan
     Start-Sleep -Milliseconds 800
     Remove-Item -Path $CacheFile -Force -ErrorAction SilentlyContinue | Out-Null
-    
+
     if ($IsSessionMode) {
-        return Get-OpenCodeSessionsForProject $ProjectId
-    } else {
-        if ($detectedMode -eq 'claude') {
-            return Get-ClaudeProjectList
-        } elseif ($detectedMode -eq 'copilot') {
-            return Get-CopilotProjectList
-        } elseif ($detectedMode -eq 'all') {
-            return Get-AllProjectList
-        } else {
-            return Get-OpenCodeProjectList
+        $provider = $script:Providers | Where-Object { $_.Id -eq $ProjectType } | Select-Object -First 1
+        if ($provider -and $provider.GetSessions) {
+            return & $provider.GetSessions $ProjectId $provider.StorageDir
         }
+        return @()
     }
+
+    if ($detectedMode -eq 'all') {
+        return Get-AllProjectList
+    }
+
+    return & $activeProvider.GetProjects $activeProvider.DataDir $activeProvider.CacheFile $CacheMaxAgeMinutes
 }
 
 # ==================== Main UI Logic ====================
@@ -912,7 +478,7 @@ function Show-Chooser {
                     return @{ selected = $true; index = $selectedIndex }
                 }
                 'refresh' {
-                    $newItems = Refresh-ItemList $IsSessionMode $(if ($IsSessionMode) { $ParentProject.id })
+                    $newItems = Refresh-ItemList $IsSessionMode $(if ($IsSessionMode) { $ParentProject.id }) $(if ($IsSessionMode) { $ParentProject.type })
                     if ($newItems.Count -eq 0) {
                         if ($IsSessionMode) {
                             Write-Host "No items found after refresh" -ForegroundColor Yellow
@@ -948,14 +514,10 @@ if (-not (Test-DirectoriesExist -DetectedMode $detectedMode)) {
 }
 
 # Load initial projects based on detected mode
-if ($detectedMode -eq 'claude') {
-    $allProjects = Get-ClaudeProjectList
-} elseif ($detectedMode -eq 'copilot') {
-    $allProjects = Get-CopilotProjectList
-} elseif ($detectedMode -eq 'all') {
+if ($detectedMode -eq 'all') {
     $allProjects = Get-AllProjectList
 } else {
-    $allProjects = Get-OpenCodeProjectList
+    $allProjects = @(& $activeProvider.GetProjects $activeProvider.DataDir $activeProvider.CacheFile $CacheMaxAgeMinutes)
 }
 
 # Double-check we have projects
@@ -964,23 +526,26 @@ if ($allProjects.Count -eq 0) {
     exit 1
 }
 
-# Main loop for project selection (Claude mode or OpenCode projects mode)
+# Main loop for project selection
 while ($true) {
     $result = Show-Chooser $allProjects $false
-    
+
     if ($result -is [hashtable] -and $result.selected) {
         $selectedProject = $allProjects[$result.index]
-        
-        # For OpenCode, optionally show sessions before opening
-        if ($detectedMode -eq 'opencode' -and $OpenCodeSessionMode -eq 'sessions') {
-            $sessions = Get-OpenCodeSessionsForProject $selectedProject.id
+
+        # Resolve the provider for the selected project
+        $projectType     = if ($detectedMode -eq 'all') { $selectedProject.type } else { $detectedMode }
+        $launchProvider  = $script:Providers | Where-Object { $_.Id -eq $projectType } | Select-Object -First 1
+
+        # For providers that support session browsing, optionally show sessions first
+        if ($launchProvider -and $launchProvider.GetSessions -and $OpenCodeSessionMode -eq 'sessions') {
+            $sessions = & $launchProvider.GetSessions $selectedProject.id $launchProvider.StorageDir
             if ($sessions.Count -gt 0) {
                 $sessionResult = Show-Chooser $sessions $true $selectedProject
                 if ($sessionResult -is [hashtable] -and $sessionResult.selected) {
                     $selectedSession = $sessions[$sessionResult.index]
-                    $projectPath = $selectedSession.fullPath
+                    $projectPath     = $selectedSession.fullPath
                 } else {
-                    # User went back, continue to next project selection
                     continue
                 }
             } else {
@@ -989,17 +554,17 @@ while ($true) {
         } else {
             $projectPath = $selectedProject.fullPath
         }
-        
+
         # Validate and launch
         if ($projectPath -is [array]) { $projectPath = $projectPath[0] }
         $projectPath = $projectPath.Trim()
-        
+
         if ([string]::IsNullOrWhiteSpace($projectPath)) {
             Write-Host "Error: No path specified" -ForegroundColor Red
             Start-Sleep -Seconds 2
             continue
         }
-        
+
         if (-not (Test-Path $projectPath)) {
             Clear-Host
             Show-InvalidPathError -InvalidPath $projectPath
@@ -1009,26 +574,12 @@ while ($true) {
             $null = [Console]::ReadKey($true)
             continue
         }
-        
-         Write-Host "`nLaunching: $projectPath`n" -ForegroundColor Green
-         $pwshExe = (Get-Command pwsh).Source
 
-         # Determine which tool to launch
-         $launchTool = switch ($detectedMode) {
-             'claude'   { 'claude' }
-             'copilot'  { 'copilot' }
-             'opencode' { 'opencode' }
-             'all'      {
-                 switch ($selectedProject.type) {
-                     'claude'  { 'claude' }
-                     'copilot' { 'copilot' }
-                     default   { 'opencode' }
-                 }
-             }
-             default    { 'opencode' }
-         }
+        Write-Host "`nLaunching: $projectPath`n" -ForegroundColor Green
+        $pwshExe   = (Get-Command pwsh).Source
+        $launchCmd = if ($launchProvider) { $launchProvider.LaunchCmd } else { $projectType }
 
-         Start-Process -FilePath $pwshExe -ArgumentList "-NoExit", "-Command", "Set-Location '$projectPath'; $launchTool"
-         Clear-Host
+        Start-Process -FilePath $pwshExe -ArgumentList "-NoExit", "-Command", "Set-Location '$projectPath'; $launchCmd"
+        Clear-Host
     }
 }
